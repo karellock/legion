@@ -4,6 +4,34 @@
 
 This document describes the design for the Legion game prototype.
 
+## Implementation Status (April 2026)
+
+### Done
+
+- Deterministic core simulation with no RNG and no physics bumping.
+- Core units and structures: Peons, Towers, Main Bases.
+- Deterministic targeting baseline:
+  - visible enemy peons before structures
+  - melee range override
+- Deterministic telemetry with downloadable run logs.
+- Economy Phase 1:
+  - Kill bounty: +10 gold per enemy peon kill.
+  - Gold shrine control at map center: +2 gold/sec while one side exclusively controls past-midline pressure.
+
+### Not Done Yet
+
+- Full player economy loop (spendable gold hooked to upgrade purchases).
+- Upgrade system and scaling costs:
+  - Damage
+  - Health
+  - Spawn Count
+  - Super Peon unlock
+- Super Peon gameplay implementation.
+- Time-based spawn interval ramp (3s -> 2s -> 1s by minute milestones).
+- On-screen upgrade controls and unit stat inspection UX.
+- Time-scaling (slow/fast) control for balancing passes.
+- AI spending bots with scripted build orders.
+
 ## Tech Stack & Architecture
 
 - Environment: Pure HTML5 Canvas and Vanilla JavaScript.

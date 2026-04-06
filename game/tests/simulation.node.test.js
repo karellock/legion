@@ -313,6 +313,42 @@ runTest('hp lost telemetry counts actual damage after clamp', () => {
   assert(simulation.state.rightHpLost === 5, 'hp lost should reflect actual health removed, not raw outgoing damage');
 });
 
+runTest('peon kill awards deterministic bounty gold to killer side', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  simulation.addPeon('right', 400, 200, { health: 1, maxHealth: 1 });
+  makeReady(leftPeon);
+
+  simulation.tick();
+
+  assert(simulation.state.leftGold === simulation.constants.KILL_BOUNTY_GOLD, 'left side should get bounty after killing a right peon');
+  assert(simulation.state.rightGold === 0, 'right side should not gain gold from dying unit');
+});
+
+runTest('gold shrine grants passive income only when one side controls midline push', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.addPeon('left', simulation.layout.laneCenter + 30, simulation.layout.spawnSlots[3]);
+
+  advanceTicks(simulation, simulation.constants.TICK_RATE);
+
+  assert(simulation.state.shrineControl === 'left', 'left side should control shrine when only left has units past midline');
+  assert(simulation.state.leftGold === simulation.constants.SHRINE_GOLD_PER_SECOND, 'left should gain one second of shrine gold');
+  assert(simulation.state.rightGold === 0, 'right should gain no shrine gold while left controls');
+
+  simulation.addPeon('right', simulation.layout.laneCenter - 30, simulation.layout.spawnSlots[3]);
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 2);
+
+  assert(simulation.state.shrineControl === 'neutral', 'shrine should become neutral when both sides have map control');
+  assert(simulation.state.leftGold === simulation.constants.SHRINE_GOLD_PER_SECOND, 'left shrine income should stop when control is contested');
+  assert(simulation.state.rightGold === 0, 'right should not gain shrine income during neutral control');
+});
+
 runTest('tick summary reflects end-of-tick hp loss after attacks are applied', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -329,6 +365,9 @@ runTest('tick summary reflects end-of-tick hp loss after attacks are applied', (
   const lastSummary = simulation.getDecisionLog().filter(entry => entry.event === 'tick-summary').at(-1);
   assert(lastSummary.leftHpLost === simulation.state.leftHpLost, 'tick summary should match end-of-tick left hp lost');
   assert(lastSummary.rightHpLost === simulation.state.rightHpLost, 'tick summary should match end-of-tick right hp lost');
+  assert(lastSummary.leftGold === simulation.state.leftGold, 'tick summary should include current left gold');
+  assert(lastSummary.rightGold === simulation.state.rightGold, 'tick summary should include current right gold');
+  assert(lastSummary.shrineControl === simulation.state.shrineControl, 'tick summary should include shrine control owner');
 });
 
 runTest('decision log respects max entry cap', () => {
