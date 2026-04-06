@@ -425,6 +425,19 @@ runTest('chooseMeleeAttackTarget returns null when no enemies are in melee range
   assert(chosen === null, 'expected null when no enemy is in attack range');
 });
 
+runTest('chooseMeleeAttackTarget keeps preferred target when still valid and in range', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const preferred = simulation.addPeon('right', 105, 100, { health: 40, maxHealth: 100 });
+  const other = simulation.addPeon('right', 106, 100, { health: 5, maxHealth: 100 });
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, preferred, [preferred, other], new Map());
+  assert(chosen === preferred, 'preferred in-range target should be kept while it still has remaining health');
+});
+
 runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -525,6 +538,21 @@ runTest('peon attacks enemy in melee range even when strategy target is a struct
   const rightAttack = log.find(entry => entry.event === 'attack' && entry.side === 'right');
   assert(Boolean(leftAttack), 'left peon should attack the right peon in melee range, not stand still targeting structure');
   assert(Boolean(rightAttack), 'right peon should attack the left peon in melee range');
+});
+
+runTest('deterministic full-lane run keeps blue ahead of red', () => {
+  const simulation = createSimulation();
+  simulation.setDecisionLogEnabled(true);
+
+  advanceTicks(simulation, 34 * simulation.constants.TICK_RATE);
+
+  const leftCount = simulation.state.peons.filter(peon => peon.side === 'left').length;
+  const rightCount = simulation.state.peons.filter(peon => peon.side === 'right').length;
+
+  assert(simulation.state.rightHpLost > simulation.state.leftHpLost, 'red side should lose more HP than blue in the deterministic baseline run');
+  assert(leftCount > rightCount, 'blue side should control more peons than red by the end of the deterministic baseline run');
+  assert(simulation.state.leftBase.health > 0, 'blue base should still be alive in the deterministic baseline run');
+  assert(simulation.state.rightBase.health > 0, 'red base should still be alive in the deterministic baseline run');
 });
 
 if (process.exitCode && process.exitCode !== 0) {
