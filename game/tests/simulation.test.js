@@ -102,6 +102,38 @@ runTest('peons drop structure targets when an enemy peon appears', () => {
   assert(simulation.state.rightTower.health === 490, 'tower should stop taking damage once an enemy peon appears');
 });
 
+runTest('after crossing midline peons hunt enemies on attacker side first', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 5, simulation.state.rightTower.y);
+  const rightPeon = simulation.addPeon('right', leftPeon.x + 8, leftPeon.y);
+  makeReady(leftPeon);
+  makeReady(rightPeon);
+
+  simulation.tick();
+
+  assert(leftPeon.target === rightPeon, 'left peon should hunt enemy peon on attacker side after crossing midline');
+  assert(rightPeon.health < 100, 'hunted enemy peon should take damage');
+});
+
+runTest('after crossing midline peons target structure when no attacker-side enemies remain', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
+  simulation.addPeon('right', simulation.layout.laneCenter - 50, simulation.state.rightTower.y);
+  makeReady(leftPeon);
+
+  const towerBefore = simulation.state.rightTower.health;
+  simulation.tick();
+
+  assert(leftPeon.target === simulation.state.rightTower, 'left peon should target right tower when attacker side is clear');
+  assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no attacker-side enemies exist');
+});
+
 runTest('simultaneous melee kills both peons in equal trade', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();

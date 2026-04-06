@@ -132,7 +132,7 @@ runTest('after crossing midline peons hunt enemies on attacker side first', () =
   disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 5, simulation.state.rightTower.y);
-  const rightPeon = simulation.addPeon('right', leftPeon.x + 200, leftPeon.y);
+  const rightPeon = simulation.addPeon('right', leftPeon.x + 8, leftPeon.y);
   makeReady(leftPeon);
   makeReady(rightPeon);
 
@@ -147,7 +147,7 @@ runTest('after crossing midline peons target structure when no attacker-side ene
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
-  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 30, simulation.state.rightTower.y);
+  const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   // Enemy exists but on defender side, so should not block tower push.
   simulation.addPeon('right', simulation.layout.laneCenter - 50, simulation.state.rightTower.y);
   makeReady(leftPeon);
