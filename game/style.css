@@ -1,0 +1,21 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #121212;
+  color: #f5f5f5;
+}
+
+#app {
+  padding: 24px;
+}
+
+canvas {
+  display: block;
+  border: 1px solid #444;
+  margin-top: 16px;
+  background: #0a0a0a;
+}
