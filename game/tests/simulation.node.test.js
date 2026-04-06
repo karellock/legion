@@ -431,10 +431,10 @@ runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp'
   disableAutoSpawns(simulation);
 
   const left = simulation.addPeon('left', 100, 100);
-  const lowHp = simulation.addPeon('right', 110, 100, { health: 6, maxHealth: 100 });
-  const highHp = simulation.addPeon('right', 112, 100, { health: 9, maxHealth: 100 });
+  const lowHp = simulation.addPeon('right', 105, 100, { health: 6, maxHealth: 100 });
+  const highHp = simulation.addPeon('right', 107, 100, { health: 9, maxHealth: 100 });
 
-  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, highHp, [highHp, lowHp], new Map());
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, highHp, [lowHp, highHp], new Map());
   assert(chosen === lowHp, 'lowest executable kill hp should win among kill candidates');
 });
 
