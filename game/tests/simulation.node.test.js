@@ -93,6 +93,30 @@ runTest('fresh peons can attack immediately on contact', () => {
   assert(rightPeon.health < rightHealthBefore, 'right peon should take melee damage on first contact tick');
 });
 
+runTest('symmetric mirrored skirmish stays even before structures matter', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftX = simulation.layout.laneLeft + 20;
+  const rightX = simulation.layout.laneRight - 20;
+  const slots = simulation.layout.spawnSlots;
+
+  simulation.addPeon('left', leftX, slots[2]);
+  simulation.addPeon('right', rightX, slots[2]);
+  simulation.addPeon('left', leftX, slots[3]);
+  simulation.addPeon('right', rightX, slots[3]);
+  simulation.addPeon('left', leftX, slots[4]);
+  simulation.addPeon('right', rightX, slots[4]);
+
+  advanceTicks(simulation, 700);
+
+  const leftCount = simulation.state.peons.filter(peon => peon.side === 'left').length;
+  const rightCount = simulation.state.peons.filter(peon => peon.side === 'right').length;
+  assert(simulation.state.leftHpLost === simulation.state.rightHpLost, 'mirrored skirmish should keep hp loss symmetric');
+  assert(leftCount === rightCount, 'mirrored skirmish should keep surviving peon counts symmetric');
+});
+
 runTest('peons clear dead targets and continue moving', () => {
   const simulation = createSimulation();
   simulation.clearPeons();

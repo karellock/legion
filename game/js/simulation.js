@@ -59,13 +59,13 @@ function createSimulation(options = {}) {
       }
     }
 
-    moveTowardTarget() {
-      if (!this.target) {
+    moveTowardTarget(targetPosition = this.target) {
+      if (!targetPosition) {
         return;
       }
 
-      const dx = this.target.x - this.x;
-      const dy = this.target.y - this.y;
+      const dx = targetPosition.x - this.x;
+      const dy = targetPosition.y - this.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance <= this.attackRange || distance === 0) {
@@ -819,6 +819,12 @@ function createSimulation(options = {}) {
 
     applyQueuedAttacks(attackQueue);
 
+    const movementSnapshot = new Map(
+      livingPeons
+        .filter(peon => peon.isAlive())
+        .map(peon => [peon.id, { x: peon.x, y: peon.y }])
+    );
+
     for (const peon of livingPeons) {
         if (!peon.isAlive()) {
           continue;
@@ -829,7 +835,10 @@ function createSimulation(options = {}) {
       }
 
         if (peon.target) {
-          peon.moveTowardTarget();
+          const targetPosition = isPeonEntity(peon.target)
+            ? movementSnapshot.get(peon.target.id) || peon.target
+            : peon.target;
+          peon.moveTowardTarget(targetPosition);
         } else {
         peon.move();
       }
