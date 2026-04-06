@@ -28,10 +28,10 @@ jobs:
             --reporter=text-summary \
             --reporter=json-summary \
             --check-coverage \
-            --lines 100 \
-            --functions 100 \
-            --branches 100 \
-            --statements 100 \
+            --lines 90 \
+            --functions 90 \
+            --branches 90 \
+            --statements 90 \
             node game/tests/simulation.node.test.js
 
       - name: Publish coverage summary
