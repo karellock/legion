@@ -34,7 +34,7 @@ function makeReady(unit) {
   unit.ticksSinceLastAttack = unit.attackCooldown;
 }
 
-runTest('spawn slots cycle top to bottom deterministically', () => {
+runTest('spawn slots cycle deterministically around tower lane', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
 
@@ -43,9 +43,9 @@ runTest('spawn slots cycle top to bottom deterministically', () => {
   }
 
   const ys = simulation.state.peons.map(peon => peon.y);
-  assert(ys[0] === simulation.layout.spawnSlots[0], 'first peon should use top slot');
-  assert(ys[1] > ys[0], 'second peon should spawn lower than first');
-  assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to the top');
+  assert(ys[0] === simulation.layout.spawnSlots[0], 'first peon should use first configured slot');
+  assert(ys[1] !== ys[0], 'second peon should spawn on a different line for variety');
+  assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to first slot');
 });
 
 runTest('left side has +5 peon HP bonus', () => {

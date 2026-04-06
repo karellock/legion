@@ -129,6 +129,8 @@ function createSimulation(options = {}) {
       this.visionRange = constants.BASE_VISION_RANGE;
       this.damage = constants.BASE_DAMAGE;
       this.lastShotTarget = null;
+      this.lastShotX = null;
+      this.lastShotY = null;
       this.shotFlashTicks = 0;
     }
 
@@ -138,6 +140,8 @@ function createSimulation(options = {}) {
         this.shotFlashTicks--;
         if (this.shotFlashTicks === 0) {
           this.lastShotTarget = null;
+          this.lastShotX = null;
+          this.lastShotY = null;
         }
       }
     }
@@ -160,6 +164,8 @@ function createSimulation(options = {}) {
 
     recordShot(target) {
       this.lastShotTarget = target;
+      this.lastShotX = target.x;
+      this.lastShotY = target.y;
       this.shotFlashTicks = 4;
     }
 
@@ -201,6 +207,8 @@ function createSimulation(options = {}) {
       this.visionRange = constants.TOWER_VISION_RANGE;
       this.damage = constants.TOWER_DAMAGE;
       this.lastShotTarget = null;
+      this.lastShotX = null;
+      this.lastShotY = null;
       this.shotFlashTicks = 0;
     }
 
@@ -210,6 +218,8 @@ function createSimulation(options = {}) {
         this.shotFlashTicks--;
         if (this.shotFlashTicks === 0) {
           this.lastShotTarget = null;
+          this.lastShotX = null;
+          this.lastShotY = null;
         }
       }
     }
@@ -232,6 +242,8 @@ function createSimulation(options = {}) {
 
     recordShot(target) {
       this.lastShotTarget = target;
+      this.lastShotX = target.x;
+      this.lastShotY = target.y;
       this.shotFlashTicks = 4;
     }
 
@@ -270,15 +282,23 @@ function createSimulation(options = {}) {
     rightSpawnSlotIndex: 0,
     slashEffects: [],
     nextEntityId: 1,
+    leftHpLost: 0,
+    rightHpLost: 0,
+    leftAttacksLanded: 0,
+    rightAttacksLanded: 0,
+    decisionLogEnabled: false,
+    decisionLogMaxEntries: 8000,
+    decisionLog: [],
   };
 
   function createSpawnSlots() {
-    const usableHeight = constants.LANE_BOTTOM - constants.LANE_TOP - constants.SPAWN_SLOT_PADDING * 2;
-    const spacing = constants.SPAWN_SLOT_COUNT > 1 ? usableHeight / (constants.SPAWN_SLOT_COUNT - 1) : 0;
+    const laneY = height / 2;
+    const half = Math.floor(constants.SPAWN_SLOT_COUNT / 2);
+    const step = 12;
     const slots = [];
 
     for (let index = 0; index < constants.SPAWN_SLOT_COUNT; index++) {
-      slots.push(constants.LANE_TOP + constants.SPAWN_SLOT_PADDING + spacing * index);
+      slots.push(laneY + (index - half) * step);
     }
 
     return slots;
@@ -299,6 +319,54 @@ function createSimulation(options = {}) {
     state.rightSpawnSlotIndex = 0;
     state.slashEffects = [];
     state.gameTime = 0;
+    state.leftHpLost = 0;
+    state.rightHpLost = 0;
+    state.leftAttacksLanded = 0;
+    state.rightAttacksLanded = 0;
+    state.decisionLog = [];
+  }
+
+  function entityType(entity) {
+    if (!entity) {
+      return null;
+    }
+
+    if (typeof entity.isAlive === 'function') {
+      return 'peon';
+    }
+
+    if (entity.width) {
+      return 'tower';
+    }
+
+    return 'base';
+  }
+
+  function pushDecisionLog(entry) {
+    if (!state.decisionLogEnabled) {
+      return;
+    }
+
+    state.decisionLog.push({ tick: state.gameTime, ...entry });
+    if (state.decisionLog.length > state.decisionLogMaxEntries) {
+      state.decisionLog.shift();
+    }
+  }
+
+  function setDecisionLogEnabled(enabled) {
+    state.decisionLogEnabled = Boolean(enabled);
+  }
+
+  function clearDecisionLog() {
+    state.decisionLog = [];
+  }
+
+  function getDecisionLog(limit = null) {
+    if (typeof limit === 'number' && limit > 0) {
+      return state.decisionLog.slice(-limit);
+    }
+
+    return state.decisionLog.slice();
   }
 
   function addSlashEffect(attacker, target) {
@@ -363,6 +431,14 @@ function createSimulation(options = {}) {
       return false;
     }
 
+    if (crossedMidline && desiredTarget && desiredTarget !== currentTarget) {
+      const currentIsPeon = isPeonEntity(currentTarget);
+      const desiredIsPeon = isPeonEntity(desiredTarget);
+      if (!currentIsPeon && desiredIsPeon) {
+        return false;
+      }
+    }
+
     const targetDistance = peon.distanceTo(currentTarget);
 
     // Controlled retargeting: switch only when the new candidate is clearly better.
@@ -394,6 +470,14 @@ function createSimulation(options = {}) {
     return peon.x <= width / 2;
   }
 
+  function isOnAttackerSide(peon, enemyPeon) {
+    if (peon.side === 'left') {
+      return enemyPeon.x >= width / 2;
+    }
+
+    return enemyPeon.x <= width / 2;
+  }
+
   function findStructureTargetForPeon(peon, ignoreVision = false) {
     const canSee = target => ignoreVision || peon.distanceTo(target) <= peon.visionRange;
 
@@ -420,12 +504,90 @@ function createSimulation(options = {}) {
     return null;
   }
 
-  function queueAttack(attackQueue, target, damage) {
+  function queueAttack(attackQueue, target, damage, attackerSide) {
     if (!target) {
       return;
     }
 
-    attackQueue.push({ target, damage });
+    attackQueue.push({ target, damage, attackerSide });
+  }
+
+  function chooseMeleeAttackTarget(peon, preferredTarget, enemyCandidates, plannedDamage) {
+    const inRangeEnemies = enemyCandidates
+      .filter(enemy => enemy.isAlive() && peon.distanceTo(enemy) <= peon.attackRange)
+      .sort((a, b) => {
+        const distanceDiff = peon.distanceTo(a) - peon.distanceTo(b);
+        if (Math.abs(distanceDiff) > 0.0001) {
+          return distanceDiff;
+        }
+
+        return a.id - b.id;
+      });
+
+    if (inRangeEnemies.length === 0) {
+      return null;
+    }
+
+    const preferredRemaining = preferredTarget
+      ? preferredTarget.health - (plannedDamage.get(preferredTarget) || 0)
+      : 0;
+
+    if (preferredTarget && inRangeEnemies.includes(preferredTarget) && preferredRemaining > 0) {
+      return preferredTarget;
+    }
+
+    const nearestDistance = peon.distanceTo(inRangeEnemies[0]);
+    const distanceSlack = 4;
+    const closeCandidates = inRangeEnemies.filter(enemy => peon.distanceTo(enemy) <= nearestDistance + distanceSlack);
+
+    // First priority: if we can finish an enemy now, take the lowest HP executable kill.
+    const killCandidates = closeCandidates.filter(enemy => {
+      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
+      return remainingHealth > 0 && remainingHealth <= peon.damage;
+    });
+
+    if (killCandidates.length > 0) {
+      killCandidates.sort((a, b) => {
+        const remainingA = a.health - (plannedDamage.get(a) || 0);
+        const remainingB = b.health - (plannedDamage.get(b) || 0);
+        if (remainingA !== remainingB) {
+          return remainingA - remainingB;
+        }
+
+        const distanceDiff = peon.distanceTo(a) - peon.distanceTo(b);
+        if (Math.abs(distanceDiff) > 0.0001) {
+          return distanceDiff;
+        }
+
+        return a.id - b.id;
+      });
+
+      return killCandidates[0];
+    }
+
+    closeCandidates.sort((a, b) => {
+      const remainingA = a.health - (plannedDamage.get(a) || 0);
+      const remainingB = b.health - (plannedDamage.get(b) || 0);
+      if (remainingA !== remainingB) {
+        return remainingA - remainingB;
+      }
+
+      const distanceDiff = peon.distanceTo(a) - peon.distanceTo(b);
+      if (Math.abs(distanceDiff) > 0.0001) {
+        return distanceDiff;
+      }
+
+      return a.id - b.id;
+    });
+
+    for (const enemy of closeCandidates) {
+      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
+      if (remainingHealth > 0) {
+        return enemy;
+      }
+    }
+
+    return closeCandidates[0] || inRangeEnemies[0];
   }
 
   function isTargetAttackable(target) {
@@ -450,10 +612,24 @@ function createSimulation(options = {}) {
     for (const attack of attackQueue) {
       const currentDamage = damageByTarget.get(attack.target) || 0;
       damageByTarget.set(attack.target, currentDamage + attack.damage);
+
+      if (attack.attackerSide === 'left') {
+        state.leftAttacksLanded++;
+      } else if (attack.attackerSide === 'right') {
+        state.rightAttacksLanded++;
+      }
     }
 
     for (const [target, damage] of damageByTarget.entries()) {
+      const healthBefore = target.health;
       target.takeDamage(damage);
+      const healthLost = Math.max(0, healthBefore - target.health);
+
+      if (target.side === 'left') {
+        state.leftHpLost += healthLost;
+      } else if (target.side === 'right') {
+        state.rightHpLost += healthLost;
+      }
     }
   }
 
@@ -485,6 +661,15 @@ function createSimulation(options = {}) {
     const enemyPeonsLeft = livingPeons.filter(peon => peon.side === 'right');
     const enemyPeonsRight = livingPeons.filter(peon => peon.side === 'left');
     const attackQueue = [];
+    const plannedDamage = new Map();
+
+    pushDecisionLog({
+      event: 'tick-summary',
+      leftPeons: enemyPeonsRight.length,
+      rightPeons: enemyPeonsLeft.length,
+      leftHpLost: state.leftHpLost,
+      rightHpLost: state.rightHpLost,
+    });
 
     for (const peon of livingPeons) {
       peon.update();
@@ -493,13 +678,15 @@ function createSimulation(options = {}) {
     for (const peon of livingPeons) {
       const crossedMidline = hasCrossedMidline(peon);
       const enemyPeons = peon.side === 'left' ? enemyPeonsLeft : enemyPeonsRight;
+      let enemyCandidatesForMelee = enemyPeons;
 
       let desiredTarget = null;
       if (crossedMidline) {
-        // Post-midline push with backtracking enabled:
-        // if an enemy peon is visible, re-engage it even if that means turning back.
-        const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
-        desiredTarget = visibleEnemyTarget || findStructureTargetForPeon(peon, true);
+        // Post-midline hunt: clear enemy peons on attacker side first, then structures.
+        const enemiesOnAttackerSide = enemyPeons.filter(enemyPeon => isOnAttackerSide(peon, enemyPeon));
+        enemyCandidatesForMelee = enemiesOnAttackerSide;
+        const huntTarget = findNearestEnemyPeon(peon, enemiesOnAttackerSide, Number.POSITIVE_INFINITY);
+        desiredTarget = huntTarget || findStructureTargetForPeon(peon, true);
       } else {
         const enemyPeonTarget = findNearestEnemyPeon(peon, enemyPeons);
         const structureTarget = enemyPeonTarget ? null : findStructureTargetForPeon(peon, false);
@@ -507,26 +694,64 @@ function createSimulation(options = {}) {
       }
 
       const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+      const previousTarget = peon.target;
       const keepCurrent = peon.target && shouldKeepCurrentTarget(peon, peon.target, crossedMidline, visibleEnemyTarget, desiredTarget);
       const target = keepCurrent ? peon.target : desiredTarget;
 
       if (target) {
         peon.setTarget(target);
-        const distanceToTarget = peon.distanceTo(target);
-        if (isTargetAttackable(target) && distanceToTarget <= peon.attackRange && peon.canAttack()) {
-          queueAttack(attackQueue, target, peon.damage);
-          addSlashEffect(peon, target);
-          peon.resetAttackCooldown();
+        if (peon.canAttack()) {
+          let attackTarget = target;
+
+          if (peon.side === 'left' && isPeonEntity(target)) {
+            attackTarget = chooseMeleeAttackTarget(peon, target, enemyCandidatesForMelee, plannedDamage);
+          }
+
+          if (attackTarget && isTargetAttackable(attackTarget) && peon.distanceTo(attackTarget) <= peon.attackRange) {
+            queueAttack(attackQueue, attackTarget, peon.damage, peon.side);
+            plannedDamage.set(attackTarget, (plannedDamage.get(attackTarget) || 0) + peon.damage);
+            addSlashEffect(peon, attackTarget);
+            peon.resetAttackCooldown();
+            pushDecisionLog({
+              event: 'attack',
+              peonId: peon.id,
+              side: peon.side,
+              targetId: attackTarget.id,
+              targetType: entityType(attackTarget),
+              targetSide: attackTarget.side,
+              damage: peon.damage,
+            });
+          }
+        }
+
+        if (!previousTarget || previousTarget.id !== target.id) {
+          pushDecisionLog({
+            event: 'retarget',
+            peonId: peon.id,
+            side: peon.side,
+            fromTargetId: previousTarget ? previousTarget.id : null,
+            toTargetId: target.id,
+            toTargetType: entityType(target),
+            crossedMidline,
+          });
         }
       } else {
         peon.clearTarget();
+        if (previousTarget) {
+          pushDecisionLog({
+            event: 'clear-target',
+            peonId: peon.id,
+            side: peon.side,
+            fromTargetId: previousTarget.id,
+          });
+        }
       }
     }
 
     if (state.leftTower.canAttack() && !state.leftTower.isDestroyed()) {
       const target = state.leftTower.findNearestEnemy(enemyPeonsLeft);
       if (target) {
-        queueAttack(attackQueue, target, state.leftTower.damage);
+        queueAttack(attackQueue, target, state.leftTower.damage, state.leftTower.side);
         state.leftTower.resetAttackCooldown();
         state.leftTower.recordShot(target);
       }
@@ -535,7 +760,7 @@ function createSimulation(options = {}) {
     if (state.rightTower.canAttack() && !state.rightTower.isDestroyed()) {
       const target = state.rightTower.findNearestEnemy(enemyPeonsRight);
       if (target) {
-        queueAttack(attackQueue, target, state.rightTower.damage);
+        queueAttack(attackQueue, target, state.rightTower.damage, state.rightTower.side);
         state.rightTower.resetAttackCooldown();
         state.rightTower.recordShot(target);
       }
@@ -544,7 +769,7 @@ function createSimulation(options = {}) {
     if (state.leftBase.canAttack() && !state.leftBase.isDestroyed()) {
       const target = state.leftBase.findNearestEnemy(enemyPeonsLeft);
       if (target) {
-        queueAttack(attackQueue, target, state.leftBase.damage);
+        queueAttack(attackQueue, target, state.leftBase.damage, state.leftBase.side);
         state.leftBase.resetAttackCooldown();
         state.leftBase.recordShot(target);
       }
@@ -553,7 +778,7 @@ function createSimulation(options = {}) {
     if (state.rightBase.canAttack() && !state.rightBase.isDestroyed()) {
       const target = state.rightBase.findNearestEnemy(enemyPeonsRight);
       if (target) {
-        queueAttack(attackQueue, target, state.rightBase.damage);
+        queueAttack(attackQueue, target, state.rightBase.damage, state.rightBase.side);
         state.rightBase.resetAttackCooldown();
         state.rightBase.recordShot(target);
       }
@@ -630,6 +855,9 @@ function createSimulation(options = {}) {
     initEntities,
     addPeon,
     clearPeons,
+    setDecisionLogEnabled,
+    clearDecisionLog,
+    getDecisionLog,
   };
 }
 

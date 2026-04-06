@@ -24,7 +24,90 @@ window.legionDebug = {
   getFlags() {
     return { ...debugFlags };
   },
+  setDecisionLog(value) {
+    simulation.setDecisionLogEnabled(Boolean(value));
+    return Boolean(value);
+  },
+  clearDecisionLog() {
+    simulation.clearDecisionLog();
+    return true;
+  },
+  getDecisionLog(limit) {
+    return simulation.getDecisionLog(limit);
+  },
+  dumpDecisionLog(limit = 150) {
+    const rows = simulation.getDecisionLog(limit);
+    console.table(rows);
+    return rows.length;
+  },
+  dumpDecisionWindow(startSec, endSec, eventType = null) {
+    const startTick = Math.floor(startSec * constants.TICK_RATE);
+    const endTick = Math.floor(endSec * constants.TICK_RATE);
+    const rows = simulation
+      .getDecisionLog()
+      .filter(entry => entry.tick >= startTick && entry.tick <= endTick)
+      .filter(entry => (eventType ? entry.event === eventType : true));
+    console.table(rows);
+    return rows.length;
+  },
+  summarizeWindow(startSec, endSec) {
+    const startTick = Math.floor(startSec * constants.TICK_RATE);
+    const endTick = Math.floor(endSec * constants.TICK_RATE);
+    const rows = simulation
+      .getDecisionLog()
+      .filter(entry => entry.event === 'tick-summary')
+      .filter(entry => entry.tick >= startTick && entry.tick <= endTick);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    const result = {
+      startTick: first.tick,
+      endTick: last.tick,
+      startLeftPeons: first.leftPeons,
+      startRightPeons: first.rightPeons,
+      endLeftPeons: last.leftPeons,
+      endRightPeons: last.rightPeons,
+      leftHpLostDelta: last.leftHpLost - first.leftHpLost,
+      rightHpLostDelta: last.rightHpLost - first.rightHpLost,
+    };
+
+    console.table([result]);
+    return result;
+  },
 };
+
+function downloadRunLogs() {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    version: GAME_VERSION,
+    tickRate: constants.TICK_RATE,
+    currentTick: state.gameTime,
+    leftHpLost: state.leftHpLost,
+    rightHpLost: state.rightHpLost,
+    leftPeons: state.peons.filter(peon => peon.side === 'left').length,
+    rightPeons: state.peons.filter(peon => peon.side === 'right').length,
+    entries: simulation.getDecisionLog(),
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `legion-run-log-${Date.now()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+const downloadLogsButton = document.getElementById('downloadLogsBtn');
+if (downloadLogsButton) {
+  downloadLogsButton.addEventListener('click', downloadRunLogs);
+}
 
 window.addEventListener('keydown', event => {
   if (event.key.toLowerCase() === 'v') {
@@ -227,11 +310,7 @@ function drawPeon(peon) {
 }
 
 function drawStructureAttackBeam(structure) {
-  if (!structure.lastShotTarget || structure.shotFlashTicks <= 0) {
-    return;
-  }
-
-  if (typeof structure.lastShotTarget.isAlive === 'function' && !structure.lastShotTarget.isAlive()) {
+  if (structure.shotFlashTicks <= 0 || structure.lastShotX === null || structure.lastShotY === null) {
     return;
   }
 
@@ -243,7 +322,7 @@ function drawStructureAttackBeam(structure) {
   ctx.shadowBlur = 10;
   ctx.beginPath();
   ctx.moveTo(structure.x, structure.y);
-  ctx.lineTo(structure.lastShotTarget.x, structure.lastShotTarget.y);
+  ctx.lineTo(structure.lastShotX, structure.lastShotY);
   ctx.stroke();
 
   // Bright core to make the beam pop on dark backgrounds.
@@ -251,13 +330,13 @@ function drawStructureAttackBeam(structure) {
   ctx.lineWidth = 1.4;
   ctx.beginPath();
   ctx.moveTo(structure.x, structure.y);
-  ctx.lineTo(structure.lastShotTarget.x, structure.lastShotTarget.y);
+  ctx.lineTo(structure.lastShotX, structure.lastShotY);
   ctx.stroke();
 
   // Impact spark at target point.
   ctx.fillStyle = `rgba(255, 230, 200, ${Math.min(1, alpha + 0.2)})`;
   ctx.beginPath();
-  ctx.arc(structure.lastShotTarget.x, structure.lastShotTarget.y, 3.2, 0, Math.PI * 2);
+  ctx.arc(structure.lastShotX, structure.lastShotY, 3.2, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.shadowBlur = 0;
@@ -306,11 +385,19 @@ function drawDebugText() {
   
   const leftBaseHp = state.leftBase.isDestroyed() ? 'DESTROYED' : state.leftBase.health;
   const rightBaseHp = state.rightBase.isDestroyed() ? 'DESTROYED' : state.rightBase.health;
+  const leftPeons = state.peons.filter(peon => peon.side === 'left').length;
+  const rightPeons = state.peons.filter(peon => peon.side === 'right').length;
   
   ctx.fillText(`Left Base: ${leftBaseHp} | Tower: ${state.leftTower.isDestroyed() ? 'X' : state.leftTower.health}`, 8, 32);
   ctx.fillText(`Right Base: ${rightBaseHp} | Tower: ${state.rightTower.isDestroyed() ? 'X' : state.rightTower.health}`, 8, 48);
-  ctx.fillText(`Peons: ${state.peons.length}`, 8, 64);
+  ctx.fillText(`Peons L/R: ${leftPeons}/${rightPeons} (Total: ${state.peons.length})`, 8, 64);
   ctx.fillText(`Vision: ${debugFlags.showVisionRanges ? 'ON' : 'OFF'} (press V)`, 8, 80);
+
+  // Right-side combat telemetry for balancing/debugging.
+  ctx.textAlign = 'right';
+  ctx.fillText(`Blue HP lost: ${state.leftHpLost}`, canvas.width - 8, 16);
+  ctx.fillText(`Red HP lost: ${state.rightHpLost}`, canvas.width - 8, 32);
+  ctx.textAlign = 'left';
 }
 
 /**
@@ -319,6 +406,7 @@ function drawDebugText() {
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
+  simulation.setDecisionLogEnabled(true);
   fitTableToWindow();
   requestAnimationFrame(gameLoop);
 }

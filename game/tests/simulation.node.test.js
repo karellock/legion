@@ -26,7 +26,7 @@ function makeReady(unit) {
   unit.ticksSinceLastAttack = unit.attackCooldown;
 }
 
-runTest('spawn slots cycle top to bottom deterministically', () => {
+runTest('spawn slots cycle deterministically around tower lane', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
 
@@ -35,9 +35,9 @@ runTest('spawn slots cycle top to bottom deterministically', () => {
   }
 
   const ys = simulation.state.peons.map(peon => peon.y);
-  assert(ys[0] === simulation.layout.spawnSlots[0], 'first peon should use top slot');
-  assert(ys[1] > ys[0], 'second peon should spawn lower than first');
-  assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to top');
+  assert(ys[0] === simulation.layout.spawnSlots[0], 'first peon should use first configured slot');
+  assert(ys[1] !== ys[0], 'second peon should spawn on a different line for variety');
+  assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to first slot');
 });
 
 runTest('left side has +5 peon HP bonus', () => {
@@ -115,7 +115,7 @@ runTest('peons retarget from structure to enemy peon', () => {
   assert(simulation.state.rightTower.health === 490, 'tower damage should stop once enemy peon appears');
 });
 
-runTest('after crossing midline peons prioritize enemy structure', () => {
+runTest('after crossing midline peons hunt enemies on attacker side first', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
 
@@ -126,8 +126,24 @@ runTest('after crossing midline peons prioritize enemy structure', () => {
 
   simulation.tick();
 
-  assert(leftPeon.target === simulation.state.rightTower, 'left peon should target right tower after crossing midline');
-  assert(simulation.state.rightTower.health < 500, 'right tower should take damage from crossed-midline peon');
+  assert(leftPeon.target === rightPeon, 'left peon should hunt enemy peon on attacker side after crossing midline');
+  assert(rightPeon.health < 100, 'hunted enemy peon should take damage');
+});
+
+runTest('after crossing midline peons target structure when no attacker-side enemies remain', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+
+  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 30, simulation.state.rightTower.y);
+  // Enemy exists but on defender side, so should not block tower push.
+  simulation.addPeon('right', simulation.layout.laneCenter - 50, simulation.state.rightTower.y);
+  makeReady(leftPeon);
+
+  const towerBefore = simulation.state.rightTower.health;
+  simulation.tick();
+
+  assert(leftPeon.target === simulation.state.rightTower, 'left peon should target right tower when attacker side is clear');
+  assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no attacker-side enemies exist');
 });
 
 runTest('crossed-midline peon still attacks nearby enemy peon', () => {
@@ -163,6 +179,23 @@ runTest('peon target remains stable with multiple visible enemies', () => {
 
   simulation.tick();
   assert(leftPeon.target === firstTarget, 'left peon should keep the same valid target instead of jitter-switching');
+});
+
+runTest('melee attackers avoid lethal overkill when another target is available', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+
+  const leftA = simulation.addPeon('left', 390, 200);
+  const leftB = simulation.addPeon('left', 392, 200);
+  const rightWeak = simulation.addPeon('right', 400, 200, { health: 10, maxHealth: 10 });
+  const rightStrong = simulation.addPeon('right', 404, 200, { health: 100, maxHealth: 100 });
+  makeReady(leftA);
+  makeReady(leftB);
+
+  simulation.tick();
+
+  assert(!rightWeak.isAlive(), 'weak target should be killed');
+  assert(rightStrong.health === 90, 'second hit should be redirected to another in-range target');
 });
 
 runTest('slash effects are created and expire', () => {
