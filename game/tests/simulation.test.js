@@ -34,9 +34,15 @@ function makeReady(unit) {
   unit.ticksSinceLastAttack = unit.attackCooldown;
 }
 
+function disableAutoSpawns(simulation) {
+  simulation.state.leftSpawnTimer = Number.MAX_SAFE_INTEGER;
+  simulation.state.rightSpawnTimer = Number.MAX_SAFE_INTEGER;
+}
+
 runTest('spawn slots cycle deterministically around tower lane', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   for (let index = 0; index < simulation.layout.spawnSlots.length + 1; index++) {
     simulation.spawnUnits('left');
@@ -51,6 +57,7 @@ runTest('spawn slots cycle deterministically around tower lane', () => {
 runTest('left side has +5 peon HP bonus', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 200, 200);
   const rightPeon = simulation.addPeon('right', 600, 200);
@@ -63,6 +70,7 @@ runTest('left side has +5 peon HP bonus', () => {
 runTest('peons prioritize enemy peons over towers', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   const rightPeon = simulation.addPeon('right', leftPeon.x + 10, leftPeon.y);
@@ -79,6 +87,7 @@ runTest('peons prioritize enemy peons over towers', () => {
 runTest('peons drop structure targets when an enemy peon appears', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   makeReady(leftPeon);
@@ -96,6 +105,7 @@ runTest('peons drop structure targets when an enemy peon appears', () => {
 runTest('simultaneous melee kills both peons in equal trade', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 390, 200, { health: 10, maxHealth: 10 });
   const rightPeon = simulation.addPeon('right', 400, 200, { health: 10, maxHealth: 10 });
@@ -110,6 +120,7 @@ runTest('simultaneous melee kills both peons in equal trade', () => {
 runTest('slash effects are emitted for peon attacks', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 390, 200);
   const rightPeon = simulation.addPeon('right', 400, 200);
@@ -124,6 +135,7 @@ runTest('slash effects are emitted for peon attacks', () => {
 runTest('slash effects expire after their ttl', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 390, 200);
   const rightPeon = simulation.addPeon('right', 400, 200);
@@ -135,6 +147,32 @@ runTest('slash effects expire after their ttl', () => {
 
   advanceTicks(simulation, 12);
   assert(simulation.state.slashEffects.length === 0, 'slash effects should clear after ttl');
+});
+
+runTest('hp lost telemetry counts actual damage after clamp', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  simulation.addPeon('right', 400, 200, { health: 5, maxHealth: 5 });
+  makeReady(leftPeon);
+
+  simulation.tick();
+
+  assert(simulation.state.rightHpLost === 5, 'hp lost should reflect actual health removed, not raw outgoing damage');
+});
+
+runTest('decision log respects max entry cap', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.decisionLogMaxEntries = 5;
+  simulation.setDecisionLogEnabled(true);
+  advanceTicks(simulation, 10);
+
+  assert(simulation.getDecisionLog().length === 5, 'decision log should retain only latest entries up to cap');
 });
 
 runTest('symmetric simulation keeps both sides even over time', () => {

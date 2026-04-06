@@ -26,9 +26,15 @@ function makeReady(unit) {
   unit.ticksSinceLastAttack = unit.attackCooldown;
 }
 
+function disableAutoSpawns(simulation) {
+  simulation.state.leftSpawnTimer = Number.MAX_SAFE_INTEGER;
+  simulation.state.rightSpawnTimer = Number.MAX_SAFE_INTEGER;
+}
+
 runTest('spawn slots cycle deterministically around tower lane', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   for (let index = 0; index < simulation.layout.spawnSlots.length + 1; index++) {
     simulation.spawnUnits('left');
@@ -43,6 +49,7 @@ runTest('spawn slots cycle deterministically around tower lane', () => {
 runTest('left side has +5 peon HP bonus', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 200, 200);
   const rightPeon = simulation.addPeon('right', 600, 200);
@@ -54,6 +61,7 @@ runTest('left side has +5 peon HP bonus', () => {
 runTest('peons prioritize enemy peons over towers', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   const rightPeon = simulation.addPeon('right', leftPeon.x + 10, leftPeon.y);
@@ -70,6 +78,7 @@ runTest('peons prioritize enemy peons over towers', () => {
 runTest('fresh peons can attack immediately on contact', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 390, 200);
   const rightPeon = simulation.addPeon('right', 400, 200);
@@ -85,6 +94,7 @@ runTest('fresh peons can attack immediately on contact', () => {
 runTest('peons clear dead targets and continue moving', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 300, 300);
   const rightPeon = simulation.addPeon('right', 310, 300, { health: 1, maxHealth: 1 });
@@ -101,6 +111,7 @@ runTest('peons clear dead targets and continue moving', () => {
 runTest('peons retarget from structure to enemy peon', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   makeReady(leftPeon);
@@ -118,6 +129,7 @@ runTest('peons retarget from structure to enemy peon', () => {
 runTest('after crossing midline peons hunt enemies on attacker side first', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 5, simulation.state.rightTower.y);
   const rightPeon = simulation.addPeon('right', leftPeon.x + 200, leftPeon.y);
@@ -133,6 +145,7 @@ runTest('after crossing midline peons hunt enemies on attacker side first', () =
 runTest('after crossing midline peons target structure when no attacker-side enemies remain', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 30, simulation.state.rightTower.y);
   // Enemy exists but on defender side, so should not block tower push.
@@ -149,6 +162,7 @@ runTest('after crossing midline peons target structure when no attacker-side ene
 runTest('crossed-midline peon still attacks nearby enemy peon', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 20, simulation.state.rightTower.y);
   const rightPeon = simulation.addPeon('right', leftPeon.x + 8, leftPeon.y);
@@ -167,6 +181,7 @@ runTest('crossed-midline peon still attacks nearby enemy peon', () => {
 runTest('peon target remains stable with multiple visible enemies', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 350, 250);
   const rightA = simulation.addPeon('right', 360, 250);
@@ -184,6 +199,7 @@ runTest('peon target remains stable with multiple visible enemies', () => {
 runTest('melee attackers avoid lethal overkill when another target is available', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftA = simulation.addPeon('left', 390, 200);
   const leftB = simulation.addPeon('left', 392, 200);
@@ -201,6 +217,7 @@ runTest('melee attackers avoid lethal overkill when another target is available'
 runTest('slash effects are created and expire', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
+  disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', 390, 200);
   const rightPeon = simulation.addPeon('right', 400, 200);
@@ -212,6 +229,32 @@ runTest('slash effects are created and expire', () => {
 
   advanceTicks(simulation, 12);
   assert(simulation.state.slashEffects.length === 0, 'slash effects should expire after ttl');
+});
+
+runTest('hp lost telemetry counts actual damage after clamp', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  simulation.addPeon('right', 400, 200, { health: 5, maxHealth: 5 });
+  makeReady(leftPeon);
+
+  simulation.tick();
+
+  assert(simulation.state.rightHpLost === 5, 'hp lost should reflect actual health removed, not raw outgoing damage');
+});
+
+runTest('decision log respects max entry cap', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.decisionLogMaxEntries = 5;
+  simulation.setDecisionLogEnabled(true);
+  advanceTicks(simulation, 10);
+
+  assert(simulation.getDecisionLog().length === 5, 'decision log should retain only the most recent entries up to cap');
 });
 
 if (process.exitCode && process.exitCode !== 0) {
