@@ -177,7 +177,7 @@ runTest('after crossing midline peons target structure when no visible enemies r
   assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no visible enemies exist');
 });
 
-runTest('after crossing midline peons still pursue visible enemy peons before structures', () => {
+runTest('after crossing midline peons ignore visible trailing enemies in favor of forward push', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
@@ -187,7 +187,7 @@ runTest('after crossing midline peons still pursue visible enemy peons before st
 
   simulation.tick();
 
-  assert(leftPeon.target === rightPeon, 'crossed-midline peon should not ignore a visible enemy in favor of a structure');
+  assert(leftPeon.target === simulation.state.rightTower, 'crossed-midline peon should ignore a visible trailing enemy and keep pushing the structure');
 });
 
 runTest('after crossing midline peons do not turn back for enemies behind them', () => {
