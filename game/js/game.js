@@ -73,6 +73,9 @@ window.legionDebug = {
       endRightPeons: last.rightPeons,
       leftHpLostDelta: last.leftHpLost - first.leftHpLost,
       rightHpLostDelta: last.rightHpLost - first.rightHpLost,
+      leftGoldDelta: (last.leftGold ?? state.leftGold) - (first.leftGold ?? state.leftGold),
+      rightGoldDelta: (last.rightGold ?? state.rightGold) - (first.rightGold ?? state.rightGold),
+      shrineControl: last.shrineControl ?? state.shrineControl,
     };
 
     console.table([result]);
@@ -88,6 +91,9 @@ function downloadRunLogs() {
     currentTick: state.gameTime,
     leftHpLost: state.leftHpLost,
     rightHpLost: state.rightHpLost,
+    leftGold: state.leftGold,
+    rightGold: state.rightGold,
+    shrineControl: state.shrineControl,
     leftPeons: state.peons.filter(peon => peon.side === 'left').length,
     rightPeons: state.peons.filter(peon => peon.side === 'right').length,
     entries: simulation.getDecisionLog(),
@@ -391,7 +397,8 @@ function drawDebugText() {
   ctx.fillText(`Left Base: ${leftBaseHp} | Tower: ${state.leftTower.isDestroyed() ? 'X' : state.leftTower.health}`, 8, 32);
   ctx.fillText(`Right Base: ${rightBaseHp} | Tower: ${state.rightTower.isDestroyed() ? 'X' : state.rightTower.health}`, 8, 48);
   ctx.fillText(`Peons L/R: ${leftPeons}/${rightPeons} (Total: ${state.peons.length})`, 8, 64);
-  ctx.fillText(`Vision: ${debugFlags.showVisionRanges ? 'ON' : 'OFF'} (press V)`, 8, 80);
+  ctx.fillText(`Gold L/R: ${state.leftGold}/${state.rightGold} | Shrine: ${state.shrineControl}`, 8, 80);
+  ctx.fillText(`Vision: ${debugFlags.showVisionRanges ? 'ON' : 'OFF'} (press V)`, 8, 96);
 
   // Right-side combat telemetry for balancing/debugging.
   ctx.textAlign = 'right';

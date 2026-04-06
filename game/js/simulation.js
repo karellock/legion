@@ -24,6 +24,8 @@ function createSimulation(options = {}) {
     BASE_ATTACK_RATE: 0.33,
     BASE_DAMAGE: 10,
     BASE_VISION_RANGE: 200,
+    KILL_BOUNTY_GOLD: 10,
+    SHRINE_GOLD_PER_SECOND: 2,
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
     SPAWN_SLOT_PADDING: 40,
@@ -285,6 +287,10 @@ function createSimulation(options = {}) {
     rightHpLost: 0,
     leftAttacksLanded: 0,
     rightAttacksLanded: 0,
+    leftGold: 0,
+    rightGold: 0,
+    shrineControl: 'neutral',
+    shrineTickCounter: 0,
     decisionLogEnabled: false,
     decisionLogMaxEntries: 8000,
     decisionLog: [],
@@ -322,7 +328,57 @@ function createSimulation(options = {}) {
     state.rightHpLost = 0;
     state.leftAttacksLanded = 0;
     state.rightAttacksLanded = 0;
+    state.leftGold = 0;
+    state.rightGold = 0;
+    state.shrineControl = 'neutral';
+    state.shrineTickCounter = 0;
     state.decisionLog = [];
+  }
+
+  function awardGold(side, amount) {
+    if (amount <= 0) {
+      return;
+    }
+
+    if (side === 'left') {
+      state.leftGold += amount;
+    } else if (side === 'right') {
+      state.rightGold += amount;
+    }
+  }
+
+  function getShrineController(livingPeons) {
+    const leftHasMapControl = livingPeons.some(peon => peon.side === 'left' && peon.x > width / 2);
+    const rightHasMapControl = livingPeons.some(peon => peon.side === 'right' && peon.x < width / 2);
+
+    if (leftHasMapControl && !rightHasMapControl) {
+      return 'left';
+    }
+
+    if (rightHasMapControl && !leftHasMapControl) {
+      return 'right';
+    }
+
+    return 'neutral';
+  }
+
+  function tickShrineIncome(livingPeons) {
+    const controller = getShrineController(livingPeons);
+
+    if (controller !== state.shrineControl) {
+      state.shrineControl = controller;
+      state.shrineTickCounter = 0;
+    }
+
+    if (controller === 'neutral') {
+      return;
+    }
+
+    state.shrineTickCounter++;
+    while (state.shrineTickCounter >= constants.TICK_RATE) {
+      awardGold(controller, constants.SHRINE_GOLD_PER_SECOND);
+      state.shrineTickCounter -= constants.TICK_RATE;
+    }
   }
 
   function entityType(entity) {
@@ -630,6 +686,11 @@ function createSimulation(options = {}) {
       } else if (target.side === 'right') {
         state.rightHpLost += healthLost;
       }
+
+      if (isPeonEntity(target) && healthBefore > 0 && target.health <= 0) {
+        const killerSide = target.side === 'left' ? 'right' : 'left';
+        awardGold(killerSide, constants.KILL_BOUNTY_GOLD);
+      }
     }
   }
 
@@ -844,12 +905,17 @@ function createSimulation(options = {}) {
       }
     }
 
+    tickShrineIncome(state.peons.filter(peon => peon.isAlive() && !peon.isOffLane()));
+
       pushDecisionLog({
         event: 'tick-summary',
         leftPeons: state.peons.filter(peon => peon.side === 'left' && peon.isAlive() && !peon.isOffLane()).length,
         rightPeons: state.peons.filter(peon => peon.side === 'right' && peon.isAlive() && !peon.isOffLane()).length,
         leftHpLost: state.leftHpLost,
         rightHpLost: state.rightHpLost,
+        leftGold: state.leftGold,
+        rightGold: state.rightGold,
+        shrineControl: state.shrineControl,
       });
 
     state.gameTime++;
