@@ -128,7 +128,7 @@ runTest('peons retarget from structure to enemy peon', () => {
   assert(simulation.state.rightTower.health === 490, 'tower damage should stop once enemy peon appears');
 });
 
-runTest('after crossing midline peons hunt enemies on attacker side first', () => {
+runTest('after crossing midline peons still prioritize visible enemy peons', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
@@ -140,25 +140,25 @@ runTest('after crossing midline peons hunt enemies on attacker side first', () =
 
   simulation.tick();
 
-  assert(leftPeon.target === rightPeon, 'left peon should hunt enemy peon on attacker side after crossing midline');
+  assert(leftPeon.target === rightPeon, 'left peon should prioritize visible enemy peons after crossing midline');
   assert(rightPeon.health < 100, 'hunted enemy peon should take damage');
 });
 
-runTest('after crossing midline peons target structure when no attacker-side enemies remain', () => {
+runTest('after crossing midline peons target structure when no visible enemies remain', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
-  // Enemy exists but on defender side, so should not block tower push.
+  // Enemy exists but is outside vision, so structure remains the desired target.
   simulation.addPeon('right', simulation.layout.laneCenter - 50, simulation.state.rightTower.y);
   makeReady(leftPeon);
 
   const towerBefore = simulation.state.rightTower.health;
   simulation.tick();
 
-  assert(leftPeon.target === simulation.state.rightTower, 'left peon should target right tower when attacker side is clear');
-  assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no attacker-side enemies exist');
+  assert(leftPeon.target === simulation.state.rightTower, 'left peon should target right tower when no visible enemies exist');
+  assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no visible enemies exist');
 });
 
 runTest('after crossing midline peons still pursue visible enemy peons before structures', () => {
@@ -171,7 +171,7 @@ runTest('after crossing midline peons still pursue visible enemy peons before st
 
   simulation.tick();
 
-  assert(leftPeon.target === rightPeon, 'crossed-midline peon should not ignore a visible defender-side enemy in favor of a structure');
+  assert(leftPeon.target === rightPeon, 'crossed-midline peon should not ignore a visible enemy in favor of a structure');
 });
 
 runTest('crossed-midline peon still attacks nearby enemy peon', () => {
@@ -545,6 +545,24 @@ runTest('findStructureTargetForPeon returns null when both enemy structures are 
   assert(target === null, 'no enemy structure should be targeted when both are destroyed');
 });
 
+runTest('findDesiredTargetForPeon prefers visible enemies and otherwise falls back to structures', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', simulation.layout.laneCenter + 20, simulation.state.rightTower.y);
+  const visibleRight = simulation.addPeon('right', left.x + 20, left.y);
+
+  const withEnemy = simulation.testHooks.findDesiredTargetForPeon(left, [visibleRight]);
+  assert(withEnemy.visibleEnemyTarget === visibleRight, 'visible enemy should be reported by the helper');
+  assert(withEnemy.desiredTarget === visibleRight, 'visible enemy should outrank structures');
+
+  simulation.clearPeons();
+  const soloLeft = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
+  const withoutEnemy = simulation.testHooks.findDesiredTargetForPeon(soloLeft, []);
+  assert(withoutEnemy.desiredTarget === simulation.state.rightTower, 'structure should be the fallback target when no enemy is visible');
+});
+
 runTest('queueAttack ignores null targets', () => {
   const simulation = createSimulation();
   const queue = [];
@@ -590,16 +608,13 @@ runTest('left peon attacks without waiting when target is in range', () => {
 
 runTest('peon attacks enemy in melee range even when strategy target is a structure', () => {
   // Regression: peons that crossed midline could get stuck targeting a structure while an
-  // enemy peon was standing right next to them (the midline filter excluded the nearby peon
-  // from enemyCandidatesForMelee AND shouldKeepCurrentTarget kept the structure unconditionally).
+  // enemy peon was standing right next to them. Melee range must always override structure push.
   const mid = 400;
   const simulation = createSimulation({ width: mid * 2, height: 600 });
   simulation.clearPeons();
   disableAutoSpawns(simulation);
   simulation.setDecisionLogEnabled(true);
 
-  // Left peon has crossed midline; the right peon is just barely on the left side of midline
-  // so isOnAttackerSide() returns false and the old code excluded it from enemyCandidatesForMelee.
   const left = simulation.addPeon('left', mid + 5, 300);
   const right = simulation.addPeon('right', mid - 5, 300); // 10 units apart, within attackRange (16)
 

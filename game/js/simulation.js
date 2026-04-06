@@ -425,29 +425,12 @@ function createSimulation(options = {}) {
     return typeof entity?.isAlive === 'function';
   }
 
-  function shouldKeepCurrentTarget(peon, currentTarget, crossedMidline, visibleEnemyTarget, desiredTarget) {
+  function shouldKeepCurrentTarget(peon, currentTarget, crossedMidline, visibleEnemyTarget) {
     if (!isTargetAttackable(currentTarget)) {
       return false;
     }
 
-    if (crossedMidline && desiredTarget && desiredTarget !== currentTarget) {
-      const currentIsPeon = isPeonEntity(currentTarget);
-      const desiredIsPeon = isPeonEntity(desiredTarget);
-      if (!currentIsPeon && desiredIsPeon) {
-        return false;
-      }
-    }
-
     const targetDistance = peon.distanceTo(currentTarget);
-
-    // Controlled retargeting: switch only when the new candidate is clearly better.
-    if (desiredTarget && desiredTarget !== currentTarget) {
-      const desiredDistance = peon.distanceTo(desiredTarget);
-      const switchAdvantage = 8;
-      if (desiredDistance + switchAdvantage < targetDistance) {
-        return false;
-      }
-    }
 
     if (isPeonEntity(currentTarget)) {
       return targetDistance <= peon.visionRange;
@@ -467,14 +450,6 @@ function createSimulation(options = {}) {
     }
 
     return peon.x <= width / 2;
-  }
-
-  function isOnAttackerSide(peon, enemyPeon) {
-    if (peon.side === 'left') {
-      return enemyPeon.x >= width / 2;
-    }
-
-    return enemyPeon.x <= width / 2;
   }
 
   function findStructureTargetForPeon(peon, ignoreVision = false) {
@@ -509,6 +484,18 @@ function createSimulation(options = {}) {
     }
 
     attackQueue.push({ target, damage, attackerSide });
+  }
+
+  function findDesiredTargetForPeon(peon, enemyPeons) {
+    const crossedMidline = hasCrossedMidline(peon);
+    const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+    const structureTarget = findStructureTargetForPeon(peon, crossedMidline);
+
+    return {
+      crossedMidline,
+      visibleEnemyTarget,
+      desiredTarget: visibleEnemyTarget || structureTarget,
+    };
   }
 
   function chooseMeleeAttackTarget(peon, preferredTarget, enemyCandidates, plannedDamage) {
@@ -722,25 +709,10 @@ function createSimulation(options = {}) {
     }
 
     for (const peon of livingPeons) {
-      const crossedMidline = hasCrossedMidline(peon);
       const enemyPeons = peon.side === 'left' ? enemyPeonsLeft : enemyPeonsRight;
-
-      let desiredTarget = null;
-      if (crossedMidline) {
-        // Post-midline hunt: clear enemy peons on attacker side first, then structures.
-        const enemiesOnAttackerSide = enemyPeons.filter(enemyPeon => isOnAttackerSide(peon, enemyPeon));
-        const huntTarget = findNearestEnemyPeon(peon, enemiesOnAttackerSide, Number.POSITIVE_INFINITY);
-        const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
-        desiredTarget = huntTarget || visibleEnemyTarget || findStructureTargetForPeon(peon, true);
-      } else {
-        const enemyPeonTarget = findNearestEnemyPeon(peon, enemyPeons);
-        const structureTarget = enemyPeonTarget ? null : findStructureTargetForPeon(peon, false);
-        desiredTarget = enemyPeonTarget || structureTarget;
-      }
-
-      const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+      const { crossedMidline, visibleEnemyTarget, desiredTarget } = findDesiredTargetForPeon(peon, enemyPeons);
       const previousTarget = peon.target;
-      const keepCurrent = peon.target && shouldKeepCurrentTarget(peon, peon.target, crossedMidline, visibleEnemyTarget, desiredTarget);
+      const keepCurrent = peon.target && shouldKeepCurrentTarget(peon, peon.target, crossedMidline, visibleEnemyTarget);
       const strategyTarget = keepCurrent ? peon.target : desiredTarget;
 
       // Melee override: always engage any enemy peon in attack range regardless of strategy target.
@@ -895,6 +867,7 @@ function createSimulation(options = {}) {
     clearDecisionLog,
     getDecisionLog,
     testHooks: {
+      findDesiredTargetForPeon,
       findStructureTargetForPeon,
       queueAttack,
       chooseMeleeAttackTarget,
