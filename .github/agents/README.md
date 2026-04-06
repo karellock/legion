@@ -1,7 +1,7 @@
-# Agents
+# Agents & AI
 
-This folder is the single source of truth for VS Code agent definitions in this repository.
+This folder contains VS Code agent definitions and all AI-related workflow materials for this repository.
 
-- Put callable agent files here (for example, `*.agent.md`).
+- Agent definition files (for example, `*.agent.md`)
+- AI workflow notes, prompts, and scripts in `ai/` subdirectory
 - Keep gameplay design in `GDD.md`.
-- Keep AI workflow notes and prompts in `ai/`.
