@@ -1,0 +1,40 @@
+name: Legion CI Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  simulation-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run simulation tests
+        run: |
+          npx --yes c8 \
+            --all \
+            --include=game/js/simulation.js \
+            --reporter=text \
+            --reporter=text-summary \
+            --reporter=json-summary \
+            --check-coverage \
+            --lines 95 \
+            --functions 95 \
+            --branches 95 \
+            --statements 95 \
+            node game/tests/simulation.node.test.js
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          node -e "const fs=require('fs');const p='coverage/coverage-summary.json';if(!fs.existsSync(p)){console.log('Coverage summary not found.');process.exit(0);}const t=JSON.parse(fs.readFileSync(p,'utf8')).total;const line='| Metric | Coverage |';const sep='|---|---|';const rows=['lines','functions','branches','statements'].map(k=>'| '+k+' | '+t[k].pct+'% |').join('\\n');const summary='## Simulation Coverage\\n'+line+'\\n'+sep+'\\n'+rows+'\\n';fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,summary);"

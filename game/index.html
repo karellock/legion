@@ -8,10 +8,16 @@
 </head>
 <body>
   <div id="app">
-    <h1>Legion Game Prototype</h1>
-    <p>Open the console to see game initialization logs.</p>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="hud">
+      <h1>Legion Game Prototype</h1>
+      <p>Press V to toggle vision ranges.</p>
+      <button id="downloadLogsBtn" type="button">Download Logs</button>
+    </div>
+    <div id="tableWrap">
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
   </div>
+  <script src="js/simulation.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>
