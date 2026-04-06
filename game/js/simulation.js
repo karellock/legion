@@ -657,6 +657,53 @@ function createSimulation(options = {}) {
     state.leftTower.update();
     state.rightTower.update();
 
+    // Clean up dead/off-lane peons and log death events before tick-summary
+    const peonsBeforeCleanup = new Map(state.peons.map(p => [p.id, p]));
+    
+    state.peons = state.peons.filter(peon => {
+      if (!peon.isAlive()) {
+        return false;
+      }
+
+      if (!Number.isFinite(peon.x) || !Number.isFinite(peon.y)) {
+        return false;
+      }
+
+      if (peon.isOffLane()) {
+        return false;
+      }
+
+      if (peon.y < constants.LANE_TOP - 80 || peon.y > constants.LANE_BOTTOM + 80) {
+        return false;
+      }
+
+      return true;
+    });
+    
+    // Log death events for removed peons
+    const peonsAfterCleanup = new Set(state.peons.map(p => p.id));
+    for (const [peonId, peon] of peonsBeforeCleanup) {
+      if (!peonsAfterCleanup.has(peonId)) {
+        let killedBy = 'unknown';
+        if (!peon.isAlive()) {
+          killedBy = 'damage';
+        } else if (!Number.isFinite(peon.x) || !Number.isFinite(peon.y)) {
+          killedBy = 'invalid-position';
+        } else if (peon.isOffLane()) {
+          killedBy = 'off-lane';
+        } else if (peon.y < constants.LANE_TOP - 80 || peon.y > constants.LANE_BOTTOM + 80) {
+          killedBy = 'boundary';
+        }
+        
+        pushDecisionLog({
+          event: 'death',
+          peonId: peon.id,
+          side: peon.side,
+          killedBy,
+        });
+      }
+    }
+
     const livingPeons = state.peons.filter(peon => peon.isAlive() && !peon.isOffLane());
     const enemyPeonsLeft = livingPeons.filter(peon => peon.side === 'right');
     const enemyPeonsRight = livingPeons.filter(peon => peon.side === 'left');
@@ -678,13 +725,11 @@ function createSimulation(options = {}) {
     for (const peon of livingPeons) {
       const crossedMidline = hasCrossedMidline(peon);
       const enemyPeons = peon.side === 'left' ? enemyPeonsLeft : enemyPeonsRight;
-      let enemyCandidatesForMelee = enemyPeons;
 
       let desiredTarget = null;
       if (crossedMidline) {
         // Post-midline hunt: clear enemy peons on attacker side first, then structures.
         const enemiesOnAttackerSide = enemyPeons.filter(enemyPeon => isOnAttackerSide(peon, enemyPeon));
-        enemyCandidatesForMelee = enemiesOnAttackerSide;
         const huntTarget = findNearestEnemyPeon(peon, enemiesOnAttackerSide, Number.POSITIVE_INFINITY);
         desiredTarget = huntTarget || findStructureTargetForPeon(peon, true);
       } else {
@@ -696,15 +741,25 @@ function createSimulation(options = {}) {
       const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
       const previousTarget = peon.target;
       const keepCurrent = peon.target && shouldKeepCurrentTarget(peon, peon.target, crossedMidline, visibleEnemyTarget, desiredTarget);
-      const target = keepCurrent ? peon.target : desiredTarget;
+      const strategyTarget = keepCurrent ? peon.target : desiredTarget;
+
+      // Melee override: always engage any enemy peon in attack range regardless of strategy target.
+      // This prevents peons from ignoring enemies standing right next to them (e.g. at the midline crossing).
+      const inMeleeRange = visibleEnemyTarget && peon.distanceTo(visibleEnemyTarget) <= peon.attackRange;
+      const target = inMeleeRange ? visibleEnemyTarget : strategyTarget;
 
       if (target) {
         peon.setTarget(target);
         if (peon.canAttack()) {
+          // Use all enemy peons as melee candidates — the midline filter is for strategic movement
+          // only, not for who can be hit when already in melee range.
           let attackTarget = target;
 
-          if (peon.side === 'left' && isPeonEntity(target)) {
-            attackTarget = chooseMeleeAttackTarget(peon, target, enemyCandidatesForMelee, plannedDamage);
+          if (isPeonEntity(target)) {
+            attackTarget = chooseMeleeAttackTarget(peon, target, enemyPeons, plannedDamage);
+            if (!attackTarget) {
+              attackTarget = target;
+            }
           }
 
           if (attackTarget && isTargetAttackable(attackTarget) && peon.distanceTo(attackTarget) <= peon.attackRange) {
@@ -802,25 +857,6 @@ function createSimulation(options = {}) {
       }
     }
 
-    state.peons = state.peons.filter(peon => {
-      if (!peon.isAlive()) {
-        return false;
-      }
-
-      if (!Number.isFinite(peon.x) || !Number.isFinite(peon.y)) {
-        return false;
-      }
-
-      if (peon.isOffLane()) {
-        return false;
-      }
-
-      if (peon.y < constants.LANE_TOP - 80 || peon.y > constants.LANE_BOTTOM + 80) {
-        return false;
-      }
-
-      return true;
-    });
     state.gameTime++;
   }
 

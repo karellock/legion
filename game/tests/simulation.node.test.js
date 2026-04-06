@@ -464,6 +464,69 @@ runTest('isTargetAttackable handles null and plain objects', () => {
   assert(hooks.isTargetAttackable({ side: 'right' }) === true, 'plain object without life state should be treated as attackable');
 });
 
+runTest('right peons use chooseMeleeAttackTarget symmetrically', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setDecisionLogEnabled(true);
+
+  const right = simulation.addPeon('right', 400, 300);
+  const leftTarget = simulation.addPeon('left', 393, 300);
+  makeReady(right);
+
+  simulation.tick();
+
+  const log = simulation.getDecisionLog();
+  const attack = log.find(entry => entry.event === 'attack' && entry.peonId === right.id);
+  assert(Boolean(attack), 'right peon should attack when a left peon is in melee range');
+});
+
+runTest('left peon attacks without waiting when target is in range', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setDecisionLogEnabled(true);
+
+  const left = simulation.addPeon('left', 300, 300);
+  const rightTarget = simulation.addPeon('right', 307, 300);
+  makeReady(left);
+
+  simulation.tick();
+
+  const log = simulation.getDecisionLog();
+  const attack = log.find(entry => entry.event === 'attack' && entry.peonId === left.id);
+  assert(Boolean(attack), 'left peon should attack immediately when target is in range');
+});
+
+runTest('peon attacks enemy in melee range even when strategy target is a structure', () => {
+  // Regression: peons that crossed midline could get stuck targeting a structure while an
+  // enemy peon was standing right next to them (the midline filter excluded the nearby peon
+  // from enemyCandidatesForMelee AND shouldKeepCurrentTarget kept the structure unconditionally).
+  const mid = 400;
+  const simulation = createSimulation({ width: mid * 2, height: 600 });
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setDecisionLogEnabled(true);
+
+  // Left peon has crossed midline; the right peon is just barely on the left side of midline
+  // so isOnAttackerSide() returns false and the old code excluded it from enemyCandidatesForMelee.
+  const left = simulation.addPeon('left', mid + 5, 300);
+  const right = simulation.addPeon('right', mid - 5, 300); // 10 units apart, within attackRange (16)
+
+  // Point left peon at the (far) right tower to simulate the stuck-on-structure case
+  left.target = simulation.state.rightTower;
+  makeReady(left);
+  makeReady(right);
+
+  simulation.tick();
+
+  const log = simulation.getDecisionLog();
+  const leftAttack = log.find(entry => entry.event === 'attack' && entry.side === 'left');
+  const rightAttack = log.find(entry => entry.event === 'attack' && entry.side === 'right');
+  assert(Boolean(leftAttack), 'left peon should attack the right peon in melee range, not stand still targeting structure');
+  assert(Boolean(rightAttack), 'right peon should attack the left peon in melee range');
+});
+
 if (process.exitCode && process.exitCode !== 0) {
   process.exit(process.exitCode);
 }

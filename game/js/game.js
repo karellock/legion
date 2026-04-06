@@ -242,7 +242,7 @@ function drawBase(base) {
   const healthPercent = base.health / base.maxHealth;
   const hue = base.side === 'left' ? 200 : 0;
 
-  ctx.fillStyle = `hsl(${hue}, 100%, ${30 + healthPercent * 40}%)`;
+  ctx.fillStyle = `hsl(${hue}, 100%, ${70 - healthPercent * 40}%)`;
   ctx.beginPath();
   ctx.arc(base.x, base.y, base.size, 0, Math.PI * 2);
   ctx.fill();
@@ -251,7 +251,7 @@ function drawBase(base) {
   const barHeight = 6;
   ctx.fillStyle = '#333';
   ctx.fillRect(base.x - barWidth / 2, base.y + base.size + 10, barWidth, barHeight);
-  ctx.fillStyle = healthPercent > 0.5 ? '#0f0' : healthPercent > 0.25 ? '#ff0' : '#f00';
+  ctx.fillStyle = healthPercent > 0.75 ? '#0f0' : healthPercent > 0.5 ? '#ff0' : '#f00';
   ctx.fillRect(base.x - barWidth / 2, base.y + base.size + 10, barWidth * healthPercent, barHeight);
 
   ctx.fillStyle = '#fff';
@@ -272,7 +272,7 @@ function drawTower(tower) {
   const healthPercent = tower.health / tower.maxHealth;
   const hue = tower.side === 'left' ? 200 : 0;
 
-  ctx.fillStyle = `hsl(${hue}, 100%, ${30 + healthPercent * 40}%)`;
+  ctx.fillStyle = `hsl(${hue}, 100%, ${70 - healthPercent * 40}%)`;
   ctx.fillRect(
     tower.x - tower.width / 2,
     tower.y - tower.height / 2,
@@ -284,7 +284,7 @@ function drawTower(tower) {
   const barHeight = 4;
   ctx.fillStyle = '#333';
   ctx.fillRect(tower.x - barWidth / 2, tower.y - tower.height / 2 - 10, barWidth, barHeight);
-  ctx.fillStyle = healthPercent > 0.5 ? '#0f0' : healthPercent > 0.25 ? '#ff0' : '#f00';
+  ctx.fillStyle = healthPercent > 0.75 ? '#0f0' : healthPercent > 0.5 ? '#ff0' : '#f00';
   ctx.fillRect(tower.x - barWidth / 2, tower.y - tower.height / 2 - 10, barWidth * healthPercent, barHeight);
 }
 
@@ -299,7 +299,7 @@ function drawPeon(peon) {
   const healthPercent = peon.health / peon.maxHealth;
   const hue = peon.side === 'left' ? 200 : 0;
 
-  ctx.fillStyle = `hsl(${hue}, 100%, ${50 + healthPercent * 30}%)`;
+  ctx.fillStyle = `hsl(${hue}, 100%, ${80 - healthPercent * 30}%)`;
   ctx.beginPath();
   ctx.arc(peon.x, peon.y, peon.size, 0, Math.PI * 2);
   ctx.fill();
