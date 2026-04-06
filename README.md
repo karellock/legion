@@ -19,3 +19,10 @@ Open `game/index.html` in your browser.
 - Keep gameplay design in `GDD.md` only.
 - Keep agent definitions and AI materials in `.github/agents/`.
 - Keep implementation in `game/`.
+
+## AI Workflow (Token-Min)
+
+- Default to small, surgical edits instead of broad refactors.
+- Keep simulation logic in `game/js/simulation.js` and rendering/UI in `game/js/game.js`.
+- For balance changes, edit constants first; avoid changing unrelated systems.
+- Keep prompts and notes concise under `.github/agents/ai/`.

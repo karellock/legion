@@ -33,6 +33,7 @@ function createSimulation(options = {}) {
 
   class Peon {
     constructor(side, x, y) {
+      this.id = state.nextEntityId++;
       this.side = side;
       this.x = x;
       this.y = y;
@@ -40,8 +41,9 @@ function createSimulation(options = {}) {
       this.health = this.maxHealth;
       this.size = constants.PEON_SIZE;
       this.velocityX = side === 'left' ? constants.PEON_SPEED : -constants.PEON_SPEED;
-      this.ticksSinceLastAttack = 0;
       this.attackCooldown = constants.TICK_RATE / constants.PEON_ATTACK_RATE;
+      // Spawn-ready attack prevents "arrived but never swung" cases when units die quickly on contact.
+      this.ticksSinceLastAttack = this.attackCooldown;
       this.attackRange = constants.PEON_ATTACK_RANGE;
       this.visionRange = constants.PEON_VISION_RANGE;
       this.damage = constants.PEON_DAMAGE;
@@ -114,6 +116,7 @@ function createSimulation(options = {}) {
 
   class Base {
     constructor(side, health, maxHealth) {
+      this.id = state.nextEntityId++;
       this.side = side;
       this.health = health;
       this.maxHealth = maxHealth;
@@ -184,6 +187,7 @@ function createSimulation(options = {}) {
 
   class Tower {
     constructor(side, health, maxHealth) {
+      this.id = state.nextEntityId++;
       this.side = side;
       this.health = health;
       this.maxHealth = maxHealth;
@@ -265,6 +269,7 @@ function createSimulation(options = {}) {
     leftSpawnSlotIndex: 0,
     rightSpawnSlotIndex: 0,
     slashEffects: [],
+    nextEntityId: 1,
   };
 
   function createSpawnSlots() {
@@ -282,6 +287,7 @@ function createSimulation(options = {}) {
   const spawnSlots = createSpawnSlots();
 
   function initEntities() {
+    state.nextEntityId = 1;
     state.leftBase = new Base('left', 2000, 2000);
     state.rightBase = new Base('right', 2000, 2000);
     state.leftTower = new Tower('left', 500, 500);
@@ -326,9 +332,10 @@ function createSimulation(options = {}) {
     }
   }
 
-  function findNearestEnemyPeon(peon, enemies) {
+  function findNearestEnemyPeon(peon, enemies, maxRange = peon.visionRange) {
     let nearest = null;
-    let minDistance = peon.visionRange;
+    let minDistance = maxRange;
+    const epsilon = 0.0001;
 
     for (const enemy of enemies) {
       if (!enemy.isAlive()) {
@@ -336,8 +343,10 @@ function createSimulation(options = {}) {
       }
 
       const distance = peon.distanceTo(enemy);
-      if (distance <= minDistance) {
+      if (distance < minDistance - epsilon) {
         minDistance = distance;
+        nearest = enemy;
+      } else if (nearest && Math.abs(distance - minDistance) <= epsilon && enemy.id < nearest.id) {
         nearest = enemy;
       }
     }
@@ -345,24 +354,66 @@ function createSimulation(options = {}) {
     return nearest;
   }
 
-  function findStructureTargetForPeon(peon) {
+  function isPeonEntity(entity) {
+    return typeof entity?.isAlive === 'function';
+  }
+
+  function shouldKeepCurrentTarget(peon, currentTarget, crossedMidline, visibleEnemyTarget, desiredTarget) {
+    if (!isTargetAttackable(currentTarget)) {
+      return false;
+    }
+
+    const targetDistance = peon.distanceTo(currentTarget);
+
+    // Controlled retargeting: switch only when the new candidate is clearly better.
+    if (desiredTarget && desiredTarget !== currentTarget) {
+      const desiredDistance = peon.distanceTo(desiredTarget);
+      const switchAdvantage = 8;
+      if (desiredDistance + switchAdvantage < targetDistance) {
+        return false;
+      }
+    }
+
+    if (isPeonEntity(currentTarget)) {
+      return targetDistance <= peon.visionRange;
+    }
+
+    if (crossedMidline) {
+      return true;
+    }
+
+    // Before midline, keep structure target only when no enemy peon is visible.
+    return !visibleEnemyTarget && targetDistance <= peon.visionRange;
+  }
+
+  function hasCrossedMidline(peon) {
     if (peon.side === 'left') {
-      if (!state.rightTower.isDestroyed() && peon.distanceTo(state.rightTower) <= peon.visionRange) {
+      return peon.x >= width / 2;
+    }
+
+    return peon.x <= width / 2;
+  }
+
+  function findStructureTargetForPeon(peon, ignoreVision = false) {
+    const canSee = target => ignoreVision || peon.distanceTo(target) <= peon.visionRange;
+
+    if (peon.side === 'left') {
+      if (!state.rightTower.isDestroyed() && canSee(state.rightTower)) {
         return state.rightTower;
       }
 
-      if (!state.rightBase.isDestroyed() && peon.distanceTo(state.rightBase) <= peon.visionRange) {
+      if (!state.rightBase.isDestroyed() && canSee(state.rightBase)) {
         return state.rightBase;
       }
 
       return null;
     }
 
-    if (!state.leftTower.isDestroyed() && peon.distanceTo(state.leftTower) <= peon.visionRange) {
+    if (!state.leftTower.isDestroyed() && canSee(state.leftTower)) {
       return state.leftTower;
     }
 
-    if (!state.leftBase.isDestroyed() && peon.distanceTo(state.leftBase) <= peon.visionRange) {
+    if (!state.leftBase.isDestroyed() && canSee(state.leftBase)) {
       return state.leftBase;
     }
 
@@ -375,6 +426,22 @@ function createSimulation(options = {}) {
     }
 
     attackQueue.push({ target, damage });
+  }
+
+  function isTargetAttackable(target) {
+    if (!target) {
+      return false;
+    }
+
+    if (typeof target.isAlive === 'function') {
+      return target.isAlive();
+    }
+
+    if (typeof target.isDestroyed === 'function') {
+      return !target.isDestroyed();
+    }
+
+    return true;
   }
 
   function applyQueuedAttacks(attackQueue) {
@@ -424,20 +491,35 @@ function createSimulation(options = {}) {
     }
 
     for (const peon of livingPeons) {
-      peon.clearTarget();
-
+      const crossedMidline = hasCrossedMidline(peon);
       const enemyPeons = peon.side === 'left' ? enemyPeonsLeft : enemyPeonsRight;
-      const enemyPeonTarget = findNearestEnemyPeon(peon, enemyPeons);
-      const structureTarget = enemyPeonTarget ? null : findStructureTargetForPeon(peon);
-      const target = enemyPeonTarget || structureTarget;
+
+      let desiredTarget = null;
+      if (crossedMidline) {
+        // Post-midline push with backtracking enabled:
+        // if an enemy peon is visible, re-engage it even if that means turning back.
+        const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+        desiredTarget = visibleEnemyTarget || findStructureTargetForPeon(peon, true);
+      } else {
+        const enemyPeonTarget = findNearestEnemyPeon(peon, enemyPeons);
+        const structureTarget = enemyPeonTarget ? null : findStructureTargetForPeon(peon, false);
+        desiredTarget = enemyPeonTarget || structureTarget;
+      }
+
+      const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+      const keepCurrent = peon.target && shouldKeepCurrentTarget(peon, peon.target, crossedMidline, visibleEnemyTarget, desiredTarget);
+      const target = keepCurrent ? peon.target : desiredTarget;
 
       if (target) {
         peon.setTarget(target);
-        if (peon.distanceTo(target) <= peon.attackRange && peon.canAttack()) {
+        const distanceToTarget = peon.distanceTo(target);
+        if (isTargetAttackable(target) && distanceToTarget <= peon.attackRange && peon.canAttack()) {
           queueAttack(attackQueue, target, peon.damage);
           addSlashEffect(peon, target);
           peon.resetAttackCooldown();
         }
+      } else {
+        peon.clearTarget();
       }
     }
 
@@ -484,6 +566,10 @@ function createSimulation(options = {}) {
           continue;
         }
 
+      if (peon.target && !isTargetAttackable(peon.target)) {
+        peon.clearTarget();
+      }
+
         if (peon.target) {
           peon.moveTowardTarget();
         } else {
@@ -491,7 +577,25 @@ function createSimulation(options = {}) {
       }
     }
 
-    state.peons = state.peons.filter(peon => !peon.isOffLane() && peon.isAlive());
+    state.peons = state.peons.filter(peon => {
+      if (!peon.isAlive()) {
+        return false;
+      }
+
+      if (!Number.isFinite(peon.x) || !Number.isFinite(peon.y)) {
+        return false;
+      }
+
+      if (peon.isOffLane()) {
+        return false;
+      }
+
+      if (peon.y < constants.LANE_TOP - 80 || peon.y > constants.LANE_BOTTOM + 80) {
+        return false;
+      }
+
+      return true;
+    });
     state.gameTime++;
   }
 

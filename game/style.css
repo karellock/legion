@@ -2,7 +2,9 @@
   box-sizing: border-box;
 }
 
+html,
 body {
+  height: 100%;
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
   background: #121212;
@@ -10,12 +12,36 @@ body {
 }
 
 #app {
-  padding: 24px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+}
+
+#hud h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+#hud p {
+  margin: 4px 0 0;
+  color: #b7b7b7;
+  font-size: 13px;
+}
+
+#tableWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
 }
 
 canvas {
   display: block;
   border: 1px solid #444;
-  margin-top: 16px;
+  margin: 0;
   background: #0a0a0a;
+  image-rendering: auto;
 }

@@ -3,6 +3,8 @@ const ctx = canvas.getContext('2d');
 const simulation = window.createSimulation({ width: canvas.width, height: canvas.height });
 const { constants, layout, state } = simulation;
 const GAME_VERSION = '0.0.1';
+const BASE_CANVAS_WIDTH = canvas.width;
+const BASE_CANVAS_HEIGHT = canvas.height;
 const debugFlags = {
   showVisionRanges: false,
 };
@@ -29,6 +31,21 @@ window.addEventListener('keydown', event => {
     debugFlags.showVisionRanges = !debugFlags.showVisionRanges;
   }
 });
+
+function fitTableToWindow() {
+  const hud = document.getElementById('hud');
+  const horizontalPadding = 24; // app padding + border breathing room
+  const verticalPadding = 24;
+  const hudHeight = hud ? hud.offsetHeight : 0;
+  const availableWidth = Math.max(200, window.innerWidth - horizontalPadding);
+  const availableHeight = Math.max(150, window.innerHeight - hudHeight - verticalPadding);
+
+  const scale = Math.min(availableWidth / BASE_CANVAS_WIDTH, availableHeight / BASE_CANVAS_HEIGHT);
+  canvas.style.width = `${Math.floor(BASE_CANVAS_WIDTH * scale)}px`;
+  canvas.style.height = `${Math.floor(BASE_CANVAS_HEIGHT * scale)}px`;
+}
+
+window.addEventListener('resize', fitTableToWindow);
 
 function gameLoop(currentTime) {
   if (lastFrameTime === 0) {
@@ -218,31 +235,63 @@ function drawStructureAttackBeam(structure) {
     return;
   }
 
-  ctx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
-  ctx.lineWidth = 2;
+  const alpha = Math.min(1, 0.45 + structure.shotFlashTicks * 0.12);
+
+  ctx.strokeStyle = `rgba(255, 90, 90, ${alpha})`;
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = `rgba(255, 90, 90, ${Math.min(1, alpha + 0.1)})`;
+  ctx.shadowBlur = 10;
   ctx.beginPath();
   ctx.moveTo(structure.x, structure.y);
   ctx.lineTo(structure.lastShotTarget.x, structure.lastShotTarget.y);
   ctx.stroke();
+
+  // Bright core to make the beam pop on dark backgrounds.
+  ctx.strokeStyle = `rgba(255, 220, 220, ${Math.min(1, alpha + 0.15)})`;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(structure.x, structure.y);
+  ctx.lineTo(structure.lastShotTarget.x, structure.lastShotTarget.y);
+  ctx.stroke();
+
+  // Impact spark at target point.
+  ctx.fillStyle = `rgba(255, 230, 200, ${Math.min(1, alpha + 0.2)})`;
+  ctx.beginPath();
+  ctx.arc(structure.lastShotTarget.x, structure.lastShotTarget.y, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
 }
 
 function drawSlashEffects() {
   for (const slash of state.slashEffects) {
     const alpha = slash.ttl / slash.maxTtl;
     const color = slash.side === 'left'
-      ? `rgba(150, 210, 255, ${0.75 * alpha})`
-      : `rgba(255, 180, 160, ${0.75 * alpha})`;
+      ? `rgba(170, 220, 255, ${0.95 * alpha})`
+      : `rgba(255, 190, 165, ${0.95 * alpha})`;
 
-    const length = 10;
+    const length = 13;
     const dx = Math.cos(slash.angle + Math.PI / 2) * length;
     const dy = Math.sin(slash.angle + Math.PI / 2) * length;
 
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3.2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.moveTo(slash.x - dx, slash.y - dy);
     ctx.lineTo(slash.x + dx, slash.y + dy);
     ctx.stroke();
+
+    // Crisp inner edge for readability.
+    ctx.strokeStyle = `rgba(255, 245, 245, ${0.7 * alpha})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(slash.x - dx * 0.75, slash.y - dy * 0.75);
+    ctx.lineTo(slash.x + dx * 0.75, slash.y + dy * 0.75);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
   }
 }
 
@@ -270,6 +319,7 @@ function drawDebugText() {
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
+  fitTableToWindow();
   requestAnimationFrame(gameLoop);
 }
 
