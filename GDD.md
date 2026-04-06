@@ -14,6 +14,9 @@ This document describes the design for the Legion game prototype.
 
 - No RNG & No Physics Bumping: damage is exact, movement is exact, and units can overlap without getting stuck. This is crucial for mathematical balancing.
 - Win Condition: Destroy the enemy's Main Base.
+- Combat Targeting: visible enemy peons take priority over structures.
+- Melee Override: if an enemy peon is already in attack range, it must be attacked immediately.
+- Midline Rule: crossing the midline can relax structure vision/push behavior, but it must not make units ignore visible enemy peons.
 
 ## Entities & Baseline Stats
 
@@ -51,6 +54,7 @@ This document describes the design for the Legion game prototype.
 
 - Player UI: On-screen buttons to buy upgrades. Clicking a unit shows current stats (HP, Damage).
 - Dev Tools: A time-scaling slider or variable to multiply deltaTime (fast-forward or slow-motion) to test late-game balancing quickly.
+- Telemetry: keep downloadable deterministic run logs so late-game combat regressions can be inspected by tick.
 - AI Opponents: Simple spending bots that auto-buy specific build orders (for example, one bot only buys Health, another only buys Spawn Count) to test against.
 
 > Note: This document contains only game design. Agent definitions and AI workflow materials are stored in `.github/agents/`.
