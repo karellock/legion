@@ -332,6 +332,55 @@ runTest('tick removes invalid or out-of-lane peons', () => {
   assert(simulation.state.peons[0] === alivePeon, 'remaining peon should be the valid one');
 });
 
+runTest('initial tick auto-spawns both sides when timers expire', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+
+  simulation.state.leftSpawnTimer = 0;
+  simulation.state.rightSpawnTimer = 0;
+  simulation.tick();
+
+  const leftCount = simulation.state.peons.filter(peon => peon.side === 'left').length;
+  const rightCount = simulation.state.peons.filter(peon => peon.side === 'right').length;
+  assert(leftCount === simulation.constants.SPAWN_COUNT, 'left side should auto-spawn when timer expires');
+  assert(rightCount === simulation.constants.SPAWN_COUNT, 'right side should auto-spawn when timer expires');
+  assert(simulation.state.leftSpawnTimer === simulation.constants.SPAWN_INTERVAL_TICKS, 'left spawn timer should reset');
+  assert(simulation.state.rightSpawnTimer === simulation.constants.SPAWN_INTERVAL_TICKS, 'right spawn timer should reset');
+});
+
+runTest('clear-target decision log event is emitted when target becomes invalid and no fallback exists', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', 300, 100);
+  const deadRight = simulation.addPeon('right', 310, 100, { health: 0, maxHealth: 100 });
+  leftPeon.target = deadRight;
+  simulation.setDecisionLogEnabled(true);
+
+  simulation.tick();
+
+  const events = simulation.getDecisionLog();
+  const clearEvent = events.find(entry => entry.event === 'clear-target' && entry.peonId === leftPeon.id);
+  assert(Boolean(clearEvent), 'expected clear-target event when stale target is dropped');
+});
+
+runTest('right tower and right base can fire when left peons are in range', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.addPeon('left', simulation.state.rightTower.x - 20, simulation.state.rightTower.y);
+  simulation.addPeon('left', simulation.state.rightBase.x - 30, simulation.state.rightBase.y);
+  simulation.state.rightTower.ticksSinceLastAttack = simulation.state.rightTower.attackCooldown;
+  simulation.state.rightBase.ticksSinceLastAttack = simulation.state.rightBase.attackCooldown;
+
+  simulation.tick();
+
+  assert(Boolean(simulation.state.rightTower.lastShotTarget), 'right tower should record shot target');
+  assert(Boolean(simulation.state.rightBase.lastShotTarget), 'right base should record shot target');
+});
+
 runTest('simulation attaches createSimulation to window when evaluated in browser-like context', () => {
   const simulationSource = fs.readFileSync(require.resolve('../js/simulation.js'), 'utf8');
   const context = {
@@ -343,6 +392,25 @@ runTest('simulation attaches createSimulation to window when evaluated in browse
   vm.runInContext(simulationSource, context);
 
   assert(typeof context.window.createSimulation === 'function', 'window.createSimulation should be defined in browser-like context');
+});
+
+runTest('simulation attaches createSimulation to global window when required in Node with window defined', () => {
+  const simulationPath = require.resolve('../js/simulation.js');
+  const previousWindow = global.window;
+
+  global.window = {};
+  delete require.cache[simulationPath];
+  require('../js/simulation.js');
+
+  assert(typeof global.window.createSimulation === 'function', 'window export branch should attach createSimulation');
+
+  if (typeof previousWindow === 'undefined') {
+    delete global.window;
+  } else {
+    global.window = previousWindow;
+  }
+  delete require.cache[simulationPath];
+  require('../js/simulation.js');
 });
 
 if (process.exitCode && process.exitCode !== 0) {
