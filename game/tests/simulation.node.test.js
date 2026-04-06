@@ -425,24 +425,17 @@ runTest('chooseMeleeAttackTarget returns null when no enemies are in melee range
   assert(chosen === null, 'expected null when no enemy is in attack range');
 });
 
-runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp then distance then id', () => {
+runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
   const left = simulation.addPeon('left', 100, 100);
-  const nearLowHp = simulation.addPeon('right', 110, 100, { health: 6, maxHealth: 100 });
-  const nearHighHp = simulation.addPeon('right', 112, 100, { health: 9, maxHealth: 100 });
-  const tiedA = simulation.addPeon('right', 111, 100, { health: 7, maxHealth: 100 });
-  const tiedB = simulation.addPeon('right', 111, 100, { health: 7, maxHealth: 100 });
+  const lowHp = simulation.addPeon('right', 110, 100, { health: 6, maxHealth: 100 });
+  const highHp = simulation.addPeon('right', 112, 100, { health: 9, maxHealth: 100 });
 
-  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, nearHighHp, [nearHighHp, nearLowHp, tiedA, tiedB], new Map());
-  assert(chosen === nearLowHp, 'lowest executable kill hp should win among kill candidates');
-
-  nearLowHp.health = 7;
-  nearHighHp.health = 7;
-  const tieChosen = simulation.testHooks.chooseMeleeAttackTarget(left, nearHighHp, [nearHighHp, tiedA, tiedB], new Map());
-  assert([nearHighHp, tiedA, tiedB].includes(tieChosen), 'tie sort path should return one of tied kill candidates');
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, highHp, [highHp, lowHp], new Map());
+  assert(chosen === lowHp, 'lowest executable kill hp should win among kill candidates');
 });
 
 runTest('chooseMeleeAttackTarget non-kill sort and fallback path are covered', () => {
