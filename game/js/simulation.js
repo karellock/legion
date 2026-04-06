@@ -425,6 +425,16 @@ function createSimulation(options = {}) {
     return typeof entity?.isAlive === 'function';
   }
 
+  function isEnemyAheadOrNearby(peon, enemyPeon) {
+    const backwardTolerance = peon.attackRange + 8;
+
+    if (peon.side === 'left') {
+      return enemyPeon.x >= peon.x - backwardTolerance;
+    }
+
+    return enemyPeon.x <= peon.x + backwardTolerance;
+  }
+
   function shouldKeepCurrentTarget(peon, currentTarget, crossedMidline, visibleEnemyTarget) {
     if (!isTargetAttackable(currentTarget)) {
       return false;
@@ -433,7 +443,8 @@ function createSimulation(options = {}) {
     const targetDistance = peon.distanceTo(currentTarget);
 
     if (isPeonEntity(currentTarget)) {
-      return targetDistance <= peon.visionRange;
+      return targetDistance <= peon.attackRange
+        || (targetDistance <= peon.visionRange && isEnemyAheadOrNearby(peon, currentTarget));
     }
 
     // Structures are only kept while no enemy peon is visible.
@@ -490,7 +501,8 @@ function createSimulation(options = {}) {
 
   function findDesiredTargetForPeon(peon, enemyPeons) {
     const crossedMidline = hasCrossedMidline(peon);
-    const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+    const forwardEnemyPeons = enemyPeons.filter(enemyPeon => isEnemyAheadOrNearby(peon, enemyPeon));
+    const visibleEnemyTarget = findNearestEnemyPeon(peon, forwardEnemyPeons);
     const structureTarget = findStructureTargetForPeon(peon, crossedMidline);
 
     return {

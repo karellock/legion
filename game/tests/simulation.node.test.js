@@ -190,6 +190,19 @@ runTest('after crossing midline peons still pursue visible enemy peons before st
   assert(leftPeon.target === rightPeon, 'crossed-midline peon should not ignore a visible enemy in favor of a structure');
 });
 
+runTest('after crossing midline peons do not turn back for enemies behind them', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 40, simulation.state.rightTower.y);
+  const rightPeon = simulation.addPeon('right', leftPeon.x - 40, leftPeon.y);
+
+  simulation.tick();
+
+  assert(leftPeon.target === simulation.state.rightTower, 'crossed-midline peon should keep pushing forward instead of turning back for a trailing enemy');
+});
+
 runTest('crossed-midline peon still attacks nearby enemy peon', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
