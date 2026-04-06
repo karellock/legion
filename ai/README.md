@@ -1,15 +1,14 @@
-# AI Support Directory
+# AI Workspace
 
-This folder contains AI-related support files for the Legion project.
+This folder stores AI-related workflow material for the Legion project.
 
 ## Structure
 
-- `prompts/` - prompt templates, agent instructions, and note files for Copilot or other AI workflows
-- `scripts/` - helper scripts, automation tools, or workflow utilities
-- `models/` - metadata or small support files related to models and AI artifacts
+- prompts/ - reusable prompt templates
+- scripts/ - helper automation notes and scripts
+- notes/ - temporary planning and assistant notes
 
-## Usage
+## Rule
 
-Keep AI materials separate from the game code so development can scale cleanly.
-Use Copilot with this repository by referring to the `game/` files for code context and `GDD.md` for design intent.
-The file `ai/copilot-instructions.md` is the preferred Copilot/VS Code instruction document.
+Do not place gameplay design here. Keep all game design in GDD.md.
+Do not place agent definition files here. Keep agent files in .github/agents/.

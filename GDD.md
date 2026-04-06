@@ -53,4 +53,4 @@ This document describes the design for the Legion game prototype.
 - Dev Tools: A time-scaling slider or variable to multiply deltaTime (fast-forward or slow-motion) to test late-game balancing quickly.
 - AI Opponents: Simple spending bots that auto-buy specific build orders (for example, one bot only buys Health, another only buys Spawn Count) to test against.
 
-> Note: This document contains only game design. AI-related workflow and assistant instructions are stored in the `ai/` directory.
+> Note: This document contains only game design. Agent definitions are stored in `.github/agents/`, while AI workflow notes and prompts are stored in `ai/`.

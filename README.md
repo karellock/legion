@@ -1,24 +1,23 @@
 # Legion
 
-This repository is organized for a future game project and companion AI support files.
+Clean baseline for a deterministic tug-of-war prototype.
 
-## Repository structure
+## Project layout
 
-- `game/` - main game web files and code
-- `game/js/` - game JavaScript source
-- `game/assets/` - game assets and media files
-- `ai/` - AI support files, prompts, scripts, and agent configuration
-- `GDD.md` - game design document and source of truth
-- `ai/copilot-instructions.md` - AI assistant instructions and workflow context
+- `game/` - playable web prototype (HTML5 Canvas + vanilla JavaScript)
+- `game/js/game.js` - game loop and rendering bootstrap
+- `game/style.css` - page and canvas styling
+- `GDD.md` - game design source of truth
+- `.github/agents/` - agent definitions used by VS Code agent selection
+- `ai/` - AI workflow notes, prompts, and helper docs
 
-## Getting started
+## Run
 
-Open `game/index.html` in a browser to start the prototype.
-Use the `ai/` folder to store Copilot prompts, helper scripts, and automation for future development.
+Open `game/index.html` in your browser.
 
-## Notes
+## Rules for this repo
 
-- `GDD.md` contains only game design.
-- AI-related workflow notes and assistant instructions belong in `ai/`.
-- `ai/copilot-instructions.md` is the preferred file name for Copilot/VS Code AI instructions.
-- Keep the game code under `game/` and the design details in `GDD.md`.
+- Keep gameplay design in `GDD.md` only.
+- Keep agent definition files in `.github/agents/`.
+- Keep AI workflow notes and prompts in `ai/`.
+- Keep implementation in `game/`.
