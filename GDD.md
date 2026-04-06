@@ -21,8 +21,8 @@ This document describes the design for the Legion game prototype.
 ## Entities & Baseline Stats
 
 - The Peon (Basic Unit): 100 Max HP, 10 Damage, 1 Attack per second, moderate movement speed.
-- The Tower (1 per side): 500 Max HP, 25 Damage. Physically blocks the lane. Does not respawn once destroyed.
-- The Main Base (1 per side): 2000 Max HP. Can attack enemies to prevent a single weak unit from winning.
+- The Tower (1 per side): 500 Max HP, 20 Damage. Physically blocks the lane. Does not respawn once destroyed.
+- The Main Base (1 per side): 2000 Max HP, 10 Damage. Can attack enemies to prevent a single weak unit from winning.
 - The Super Peon (Boss Unit): A massive, heavily armored unit unlocked in the late game to break stalemates.
 
 ## Spawning Dynamics
