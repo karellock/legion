@@ -48,7 +48,7 @@ runTest('spawn slots cycle deterministically around tower lane', () => {
   assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to first slot');
 });
 
-runTest('left side has +5 peon HP bonus', () => {
+runTest('peons spawn with symmetric HP on both sides', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
@@ -56,7 +56,7 @@ runTest('left side has +5 peon HP bonus', () => {
   const leftPeon = simulation.addPeon('left', 200, 200);
   const rightPeon = simulation.addPeon('right', 600, 200);
 
-  assert(leftPeon.health === 105, 'left peon should start at 105 HP');
+  assert(leftPeon.health === 100, 'left peon should start at 100 HP');
   assert(rightPeon.health === 100, 'right peon should start at 100 HP');
 });
 
@@ -434,7 +434,7 @@ runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp'
   const lowHp = simulation.addPeon('right', 105, 100, { health: 6, maxHealth: 100 });
   const highHp = simulation.addPeon('right', 107, 100, { health: 9, maxHealth: 100 });
 
-  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, highHp, [lowHp, highHp], new Map());
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, null, [lowHp, highHp], new Map());
   assert(chosen === lowHp, 'lowest executable kill hp should win among kill candidates');
 });
 

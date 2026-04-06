@@ -12,7 +12,6 @@ function createSimulation(options = {}) {
     PEON_SPEED: 50,
     PEON_SIZE: 6,
     PEON_HP: 100,
-    LEFT_PEON_HP_BONUS: 5,
     PEON_DAMAGE: 10,
     PEON_ATTACK_RATE: 1,
     PEON_ATTACK_RANGE: 16,
@@ -37,7 +36,7 @@ function createSimulation(options = {}) {
       this.side = side;
       this.x = x;
       this.y = y;
-      this.maxHealth = constants.PEON_HP + (side === 'left' ? constants.LEFT_PEON_HP_BONUS : 0);
+      this.maxHealth = constants.PEON_HP;
       this.health = this.maxHealth;
       this.size = constants.PEON_SIZE;
       this.velocityX = side === 'left' ? constants.PEON_SPEED : -constants.PEON_SPEED;
