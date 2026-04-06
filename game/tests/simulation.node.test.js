@@ -128,6 +128,22 @@ runTest('peons retarget from structure to enemy peon', () => {
   assert(simulation.state.rightTower.health === 490, 'tower damage should stop once enemy peon appears');
 });
 
+runTest('crossed-midline peon drops structure target for visible enemy before melee range', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 30, simulation.state.rightTower.y);
+  leftPeon.target = simulation.state.rightTower;
+
+  // Visible, but not yet in melee range.
+  const rightPeon = simulation.addPeon('right', leftPeon.x + 40, leftPeon.y);
+
+  simulation.tick();
+
+  assert(leftPeon.target === rightPeon, 'crossed-midline peon should retarget from structure to a visible enemy peon before melee range');
+});
+
 runTest('after crossing midline peons still prioritize visible enemy peons', () => {
   const simulation = createSimulation();
   simulation.clearPeons();

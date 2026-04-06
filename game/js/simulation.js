@@ -436,12 +436,14 @@ function createSimulation(options = {}) {
       return targetDistance <= peon.visionRange;
     }
 
-    if (crossedMidline) {
-      return true;
+    // Structures are only kept while no enemy peon is visible.
+    // Crossing the midline relaxes structure vision gating, but it must not lock a peon
+    // onto a structure once an enemy peon comes into view.
+    if (visibleEnemyTarget) {
+      return false;
     }
 
-    // Before midline, keep structure target only when no enemy peon is visible.
-    return !visibleEnemyTarget && targetDistance <= peon.visionRange;
+    return crossedMidline || targetDistance <= peon.visionRange;
   }
 
   function hasCrossedMidline(peon) {
