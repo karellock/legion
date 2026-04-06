@@ -48,16 +48,16 @@ runTest('spawn slots cycle top to bottom deterministically', () => {
   assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to the top');
 });
 
-runTest('both sides use the same baseline peon HP', () => {
+runTest('left side has +5 peon HP bonus', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
 
   const leftPeon = simulation.addPeon('left', 200, 200);
   const rightPeon = simulation.addPeon('right', 600, 200);
 
-  assert(leftPeon.health === 100, 'left peon should start at 100 HP');
+  assert(leftPeon.health === 105, 'left peon should start at 105 HP');
   assert(rightPeon.health === 100, 'right peon should start at 100 HP');
-  assert(leftPeon.maxHealth === rightPeon.maxHealth, 'both sides should have equal peon max HP');
+  assert(leftPeon.maxHealth === rightPeon.maxHealth + 5, 'left peon max HP should be 5 higher');
 });
 
 runTest('peons prioritize enemy peons over towers', () => {
@@ -105,6 +105,36 @@ runTest('simultaneous melee kills both peons in equal trade', () => {
   simulation.tick();
 
   assert(simulation.state.peons.length === 0, 'both peons should die in the same tick');
+});
+
+runTest('slash effects are emitted for peon attacks', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  const rightPeon = simulation.addPeon('right', 400, 200);
+  makeReady(leftPeon);
+  makeReady(rightPeon);
+
+  simulation.tick();
+
+  assert(simulation.state.slashEffects.length >= 2, 'expected slash effects for both melee hits');
+});
+
+runTest('slash effects expire after their ttl', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  const rightPeon = simulation.addPeon('right', 400, 200);
+  makeReady(leftPeon);
+  makeReady(rightPeon);
+
+  simulation.tick();
+  assert(simulation.state.slashEffects.length > 0, 'expected slash effect to exist after hit tick');
+
+  advanceTicks(simulation, 12);
+  assert(simulation.state.slashEffects.length === 0, 'slash effects should clear after ttl');
 });
 
 runTest('symmetric simulation keeps both sides even over time', () => {

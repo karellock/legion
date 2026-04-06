@@ -75,6 +75,8 @@ function render() {
     drawPeon(peon);
   }
 
+  drawSlashEffects();
+
   drawDebugText();
 }
 
@@ -222,6 +224,26 @@ function drawStructureAttackBeam(structure) {
   ctx.moveTo(structure.x, structure.y);
   ctx.lineTo(structure.lastShotTarget.x, structure.lastShotTarget.y);
   ctx.stroke();
+}
+
+function drawSlashEffects() {
+  for (const slash of state.slashEffects) {
+    const alpha = slash.ttl / slash.maxTtl;
+    const color = slash.side === 'left'
+      ? `rgba(150, 210, 255, ${0.75 * alpha})`
+      : `rgba(255, 180, 160, ${0.75 * alpha})`;
+
+    const length = 10;
+    const dx = Math.cos(slash.angle + Math.PI / 2) * length;
+    const dy = Math.sin(slash.angle + Math.PI / 2) * length;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(slash.x - dx, slash.y - dy);
+    ctx.lineTo(slash.x + dx, slash.y + dy);
+    ctx.stroke();
+  }
 }
 
 /**

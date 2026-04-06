@@ -12,10 +12,11 @@ function createSimulation(options = {}) {
     PEON_SPEED: 50,
     PEON_SIZE: 6,
     PEON_HP: 100,
+    LEFT_PEON_HP_BONUS: 5,
     PEON_DAMAGE: 10,
     PEON_ATTACK_RATE: 1,
     PEON_ATTACK_RANGE: 16,
-    PEON_VISION_RANGE: 55,
+    PEON_VISION_RANGE: 90,
     TOWER_ATTACK_RANGE: 150,
     TOWER_ATTACK_RATE: 0.5,
     TOWER_DAMAGE: 25,
@@ -35,7 +36,7 @@ function createSimulation(options = {}) {
       this.side = side;
       this.x = x;
       this.y = y;
-      this.maxHealth = constants.PEON_HP;
+      this.maxHealth = constants.PEON_HP + (side === 'left' ? constants.LEFT_PEON_HP_BONUS : 0);
       this.health = this.maxHealth;
       this.size = constants.PEON_SIZE;
       this.velocityX = side === 'left' ? constants.PEON_SPEED : -constants.PEON_SPEED;
@@ -263,6 +264,7 @@ function createSimulation(options = {}) {
     rightSpawnTimer: 0,
     leftSpawnSlotIndex: 0,
     rightSpawnSlotIndex: 0,
+    slashEffects: [],
   };
 
   function createSpawnSlots() {
@@ -289,7 +291,23 @@ function createSimulation(options = {}) {
     state.rightSpawnTimer = 0;
     state.leftSpawnSlotIndex = 0;
     state.rightSpawnSlotIndex = 0;
+    state.slashEffects = [];
     state.gameTime = 0;
+  }
+
+  function addSlashEffect(attacker, target) {
+    const midX = (attacker.x + target.x) * 0.5;
+    const midY = (attacker.y + target.y) * 0.5;
+    const angle = Math.atan2(target.y - attacker.y, target.x - attacker.x);
+
+    state.slashEffects.push({
+      x: midX,
+      y: midY,
+      angle,
+      side: attacker.side,
+      ttl: 10,
+      maxTtl: 10,
+    });
   }
 
   function spawnUnits(side) {
@@ -310,7 +328,7 @@ function createSimulation(options = {}) {
 
   function findNearestEnemyPeon(peon, enemies) {
     let nearest = null;
-    let minDistance = Number.POSITIVE_INFINITY;
+    let minDistance = peon.visionRange;
 
     for (const enemy of enemies) {
       if (!enemy.isAlive()) {
@@ -318,7 +336,7 @@ function createSimulation(options = {}) {
       }
 
       const distance = peon.distanceTo(enemy);
-      if (distance < minDistance) {
+      if (distance <= minDistance) {
         minDistance = distance;
         nearest = enemy;
       }
@@ -329,22 +347,22 @@ function createSimulation(options = {}) {
 
   function findStructureTargetForPeon(peon) {
     if (peon.side === 'left') {
-      if (!state.rightTower.isDestroyed()) {
+      if (!state.rightTower.isDestroyed() && peon.distanceTo(state.rightTower) <= peon.visionRange) {
         return state.rightTower;
       }
 
-      if (!state.rightBase.isDestroyed()) {
+      if (!state.rightBase.isDestroyed() && peon.distanceTo(state.rightBase) <= peon.visionRange) {
         return state.rightBase;
       }
 
       return null;
     }
 
-    if (!state.leftTower.isDestroyed()) {
+    if (!state.leftTower.isDestroyed() && peon.distanceTo(state.leftTower) <= peon.visionRange) {
       return state.leftTower;
     }
 
-    if (!state.leftBase.isDestroyed()) {
+    if (!state.leftBase.isDestroyed() && peon.distanceTo(state.leftBase) <= peon.visionRange) {
       return state.leftBase;
     }
 
@@ -373,6 +391,11 @@ function createSimulation(options = {}) {
   }
 
   function tick() {
+    for (const slash of state.slashEffects) {
+      slash.ttl--;
+    }
+    state.slashEffects = state.slashEffects.filter(slash => slash.ttl > 0);
+
     state.leftSpawnTimer--;
     state.rightSpawnTimer--;
 
@@ -412,6 +435,7 @@ function createSimulation(options = {}) {
         peon.setTarget(target);
         if (peon.distanceTo(target) <= peon.attackRange && peon.canAttack()) {
           queueAttack(attackQueue, target, peon.damage);
+          addSlashEffect(peon, target);
           peon.resetAttackCooldown();
         }
       }
@@ -505,4 +529,10 @@ function createSimulation(options = {}) {
   };
 }
 
-window.createSimulation = createSimulation;
+if (typeof window !== 'undefined') {
+  window.createSimulation = createSimulation;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { createSimulation };
+}
