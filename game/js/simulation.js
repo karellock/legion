@@ -858,6 +858,10 @@ function createSimulation(options = {}) {
     setDecisionLogEnabled,
     clearDecisionLog,
     getDecisionLog,
+    testHooks: {
+      chooseMeleeAttackTarget,
+      isTargetAttackable,
+    },
   };
 }
 

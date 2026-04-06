@@ -413,6 +413,64 @@ runTest('simulation attaches createSimulation to global window when required in 
   require('../js/simulation.js');
 });
 
+runTest('chooseMeleeAttackTarget returns null when no enemies are in melee range', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const farEnemy = simulation.addPeon('right', 300, 100);
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, farEnemy, [farEnemy], new Map());
+
+  assert(chosen === null, 'expected null when no enemy is in attack range');
+});
+
+runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp then distance then id', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const nearLowHp = simulation.addPeon('right', 110, 100, { health: 6, maxHealth: 100 });
+  const nearHighHp = simulation.addPeon('right', 112, 100, { health: 9, maxHealth: 100 });
+  const tiedA = simulation.addPeon('right', 111, 100, { health: 7, maxHealth: 100 });
+  const tiedB = simulation.addPeon('right', 111, 100, { health: 7, maxHealth: 100 });
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, nearHighHp, [nearHighHp, nearLowHp, tiedA, tiedB], new Map());
+  assert(chosen === nearLowHp, 'lowest executable kill hp should win among kill candidates');
+
+  nearLowHp.health = 7;
+  nearHighHp.health = 7;
+  const tieChosen = simulation.testHooks.chooseMeleeAttackTarget(left, nearHighHp, [nearHighHp, tiedA, tiedB], new Map());
+  assert([nearHighHp, tiedA, tiedB].includes(tieChosen), 'tie sort path should return one of tied kill candidates');
+});
+
+runTest('chooseMeleeAttackTarget non-kill sort and fallback path are covered', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const e1 = simulation.addPeon('right', 110, 100, { health: 30, maxHealth: 100 });
+  const e2 = simulation.addPeon('right', 111, 100, { health: 30, maxHealth: 100 });
+  const e3 = simulation.addPeon('right', 112, 100, { health: 30, maxHealth: 100 });
+
+  const normal = simulation.testHooks.chooseMeleeAttackTarget(left, null, [e1, e2, e3], new Map());
+  assert([e1, e2, e3].includes(normal), 'non-kill candidate sort should return one close candidate');
+
+  const fullyPlanned = new Map([[e1, 100], [e2, 100], [e3, 100]]);
+  const fallback = simulation.testHooks.chooseMeleeAttackTarget(left, null, [e1, e2, e3], fullyPlanned);
+  assert([e1, e2, e3].includes(fallback), 'fallback should still return an in-range candidate when all remaining hp <= 0');
+});
+
+runTest('isTargetAttackable handles null and plain objects', () => {
+  const simulation = createSimulation();
+  const hooks = simulation.testHooks;
+
+  assert(hooks.isTargetAttackable(null) === false, 'null target should not be attackable');
+  assert(hooks.isTargetAttackable({ side: 'right' }) === true, 'plain object without life state should be treated as attackable');
+});
+
 if (process.exitCode && process.exitCode !== 0) {
   process.exit(process.exitCode);
 }
