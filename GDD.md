@@ -17,14 +17,15 @@ This document describes the design for the Legion game prototype.
 - Economy Phase 1:
   - Kill bounty: +10 gold per enemy peon kill.
   - Gold shrine control at map center: +2 gold/sec while one side exclusively controls past-midline pressure.
+- Upgrade Phase 1:
+  - Spendable gold with deterministic purchase flow.
+  - Cost scaling: 50g base, doubling per level for each upgrade track.
+  - Implemented tracks: Damage (+5 per level), Health (+50 per level), Spawn Count (+1 per level).
+  - On-screen controls for Blue/Red upgrade purchases during manual tests.
 
 ### Not Done Yet
 
-- Full player economy loop (spendable gold hooked to upgrade purchases).
 - Upgrade system and scaling costs:
-  - Damage
-  - Health
-  - Spawn Count
   - Super Peon unlock
 - Super Peon gameplay implementation.
 - Time-based spawn interval ramp (3s -> 2s -> 1s by minute milestones).

@@ -26,6 +26,10 @@ function createSimulation(options = {}) {
     BASE_VISION_RANGE: 200,
     KILL_BOUNTY_GOLD: 10,
     SHRINE_GOLD_PER_SECOND: 2,
+    UPGRADE_BASE_COST: 50,
+    UPGRADE_DAMAGE_PER_LEVEL: 5,
+    UPGRADE_HEALTH_PER_LEVEL: 50,
+    UPGRADE_SPAWN_COUNT_PER_LEVEL: 1,
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
     SPAWN_SLOT_PADDING: 40,
@@ -33,12 +37,12 @@ function createSimulation(options = {}) {
   };
 
   class Peon {
-    constructor(side, x, y) {
+    constructor(side, x, y, stats = {}) {
       this.id = state.nextEntityId++;
       this.side = side;
       this.x = x;
       this.y = y;
-      this.maxHealth = constants.PEON_HP;
+      this.maxHealth = stats.maxHealth ?? constants.PEON_HP;
       this.health = this.maxHealth;
       this.size = constants.PEON_SIZE;
       this.velocityX = side === 'left' ? constants.PEON_SPEED : -constants.PEON_SPEED;
@@ -47,7 +51,7 @@ function createSimulation(options = {}) {
       this.ticksSinceLastAttack = this.attackCooldown;
       this.attackRange = constants.PEON_ATTACK_RANGE;
       this.visionRange = constants.PEON_VISION_RANGE;
-      this.damage = constants.PEON_DAMAGE;
+      this.damage = stats.damage ?? constants.PEON_DAMAGE;
       this.target = null;
     }
 
@@ -291,10 +295,20 @@ function createSimulation(options = {}) {
     rightGold: 0,
     shrineControl: 'neutral',
     shrineTickCounter: 0,
+    leftUpgrades: null,
+    rightUpgrades: null,
     decisionLogEnabled: false,
     decisionLogMaxEntries: 8000,
     decisionLog: [],
   };
+
+  function createUpgradeState() {
+    return {
+      damageLevel: 0,
+      healthLevel: 0,
+      spawnLevel: 0,
+    };
+  }
 
   function createSpawnSlots() {
     const laneY = height / 2;
@@ -332,7 +346,119 @@ function createSimulation(options = {}) {
     state.rightGold = 0;
     state.shrineControl = 'neutral';
     state.shrineTickCounter = 0;
+    state.leftUpgrades = createUpgradeState();
+    state.rightUpgrades = createUpgradeState();
     state.decisionLog = [];
+  }
+
+  function getUpgradesForSide(side) {
+    return side === 'left' ? state.leftUpgrades : state.rightUpgrades;
+  }
+
+  function getGoldForSide(side) {
+    return side === 'left' ? state.leftGold : state.rightGold;
+  }
+
+  function spendGold(side, amount) {
+    if (amount <= 0) {
+      return true;
+    }
+
+    const currentGold = getGoldForSide(side);
+    if (currentGold < amount) {
+      return false;
+    }
+
+    if (side === 'left') {
+      state.leftGold -= amount;
+    } else {
+      state.rightGold -= amount;
+    }
+
+    return true;
+  }
+
+  function getUpgradeCost(level) {
+    return constants.UPGRADE_BASE_COST * (2 ** level);
+  }
+
+  function getPeonStatsForSide(side) {
+    const upgrades = getUpgradesForSide(side);
+    return {
+      maxHealth: constants.PEON_HP + upgrades.healthLevel * constants.UPGRADE_HEALTH_PER_LEVEL,
+      damage: constants.PEON_DAMAGE + upgrades.damageLevel * constants.UPGRADE_DAMAGE_PER_LEVEL,
+    };
+  }
+
+  function getSpawnCountForSide(side) {
+    const upgrades = getUpgradesForSide(side);
+    return constants.SPAWN_COUNT + upgrades.spawnLevel * constants.UPGRADE_SPAWN_COUNT_PER_LEVEL;
+  }
+
+  function getUpgradeSnapshot() {
+    const left = state.leftUpgrades;
+    const right = state.rightUpgrades;
+
+    return {
+      left: {
+        damageLevel: left.damageLevel,
+        healthLevel: left.healthLevel,
+        spawnLevel: left.spawnLevel,
+        nextDamageCost: getUpgradeCost(left.damageLevel),
+        nextHealthCost: getUpgradeCost(left.healthLevel),
+        nextSpawnCost: getUpgradeCost(left.spawnLevel),
+      },
+      right: {
+        damageLevel: right.damageLevel,
+        healthLevel: right.healthLevel,
+        spawnLevel: right.spawnLevel,
+        nextDamageCost: getUpgradeCost(right.damageLevel),
+        nextHealthCost: getUpgradeCost(right.healthLevel),
+        nextSpawnCost: getUpgradeCost(right.spawnLevel),
+      },
+    };
+  }
+
+  function buyUpgrade(side, type) {
+    if (side !== 'left' && side !== 'right') {
+      return { ok: false, reason: 'invalid-side' };
+    }
+
+    const upgrades = getUpgradesForSide(side);
+    const typeToLevelKey = {
+      damage: 'damageLevel',
+      health: 'healthLevel',
+      spawn: 'spawnLevel',
+    };
+    const levelKey = typeToLevelKey[type];
+    if (!levelKey) {
+      return { ok: false, reason: 'invalid-upgrade-type' };
+    }
+
+    const currentLevel = upgrades[levelKey];
+    const cost = getUpgradeCost(currentLevel);
+    if (!spendGold(side, cost)) {
+      return { ok: false, reason: 'insufficient-gold', cost, currentGold: getGoldForSide(side) };
+    }
+
+    upgrades[levelKey]++;
+    pushDecisionLog({
+      event: 'upgrade',
+      side,
+      upgradeType: type,
+      newLevel: upgrades[levelKey],
+      cost,
+      remainingGold: getGoldForSide(side),
+    });
+
+    return {
+      ok: true,
+      side,
+      type,
+      cost,
+      newLevel: upgrades[levelKey],
+      remainingGold: getGoldForSide(side),
+    };
   }
 
   function awardGold(side, amount) {
@@ -441,11 +567,13 @@ function createSimulation(options = {}) {
 
   function spawnUnits(side) {
     const spawnX = side === 'left' ? constants.LANE_LEFT + 20 : constants.LANE_RIGHT - 20;
+    const spawnCount = getSpawnCountForSide(side);
+    const peonStats = getPeonStatsForSide(side);
 
-    for (let index = 0; index < constants.SPAWN_COUNT; index++) {
+    for (let index = 0; index < spawnCount; index++) {
       const slotIndex = side === 'left' ? state.leftSpawnSlotIndex : state.rightSpawnSlotIndex;
       const spawnY = spawnSlots[slotIndex];
-      state.peons.push(new Peon(side, spawnX, spawnY));
+      state.peons.push(new Peon(side, spawnX, spawnY, peonStats));
 
       if (side === 'left') {
         state.leftSpawnSlotIndex = (state.leftSpawnSlotIndex + 1) % spawnSlots.length;
@@ -916,13 +1044,19 @@ function createSimulation(options = {}) {
         leftGold: state.leftGold,
         rightGold: state.rightGold,
         shrineControl: state.shrineControl,
+        leftDamageLevel: state.leftUpgrades.damageLevel,
+        leftHealthLevel: state.leftUpgrades.healthLevel,
+        leftSpawnLevel: state.leftUpgrades.spawnLevel,
+        rightDamageLevel: state.rightUpgrades.damageLevel,
+        rightHealthLevel: state.rightUpgrades.healthLevel,
+        rightSpawnLevel: state.rightUpgrades.spawnLevel,
       });
 
     state.gameTime++;
   }
 
   function addPeon(side, x, y, overrides = {}) {
-    const peon = new Peon(side, x, y);
+    const peon = new Peon(side, x, y, getPeonStatsForSide(side));
     Object.assign(peon, overrides);
     state.peons.push(peon);
     return peon;
@@ -949,6 +1083,8 @@ function createSimulation(options = {}) {
     state,
     tick,
     spawnUnits,
+    buyUpgrade,
+    getUpgradeSnapshot,
     initEntities,
     addPeon,
     clearPeons,

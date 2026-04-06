@@ -349,6 +349,68 @@ runTest('gold shrine grants passive income only when one side controls midline p
   assert(simulation.state.rightGold === 0, 'right should not gain shrine income during neutral control');
 });
 
+runTest('buyUpgrade rejects purchase when side lacks enough gold', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const result = simulation.buyUpgrade('left', 'damage');
+
+  assert(result.ok === false, 'purchase should fail when gold is insufficient');
+  assert(result.reason === 'insufficient-gold', 'failure reason should be insufficient gold');
+  assert(simulation.state.leftUpgrades.damageLevel === 0, 'damage level should remain unchanged after failed purchase');
+});
+
+runTest('upgrade costs double each level and spend gold deterministically', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.leftGold = 200;
+  const first = simulation.buyUpgrade('left', 'damage');
+  const second = simulation.buyUpgrade('left', 'damage');
+
+  assert(first.ok === true, 'first upgrade purchase should succeed');
+  assert(second.ok === true, 'second upgrade purchase should succeed');
+  assert(first.cost === 50, 'first upgrade cost should be base cost 50');
+  assert(second.cost === 100, 'second upgrade cost should double to 100');
+  assert(simulation.state.leftGold === 50, 'gold should be reduced by cumulative costs (150 total)');
+  assert(simulation.state.leftUpgrades.damageLevel === 2, 'damage upgrade level should increment per purchase');
+});
+
+runTest('health and damage upgrades affect newly spawned peons', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.leftGold = 200;
+  simulation.buyUpgrade('left', 'health');
+  simulation.buyUpgrade('left', 'damage');
+
+  const upgradedPeon = simulation.addPeon('left', 200, 200);
+
+  assert(upgradedPeon.maxHealth === 150, 'left peon max health should include +50 from one health upgrade');
+  assert(upgradedPeon.health === 150, 'left peon current health should start at upgraded max health');
+  assert(upgradedPeon.damage === 15, 'left peon damage should include +5 from one damage upgrade');
+});
+
+runTest('spawn upgrade increases spawned wave size for that side only', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.leftGold = 100;
+  simulation.buyUpgrade('left', 'spawn');
+
+  simulation.spawnUnits('left');
+  simulation.spawnUnits('right');
+
+  const leftCount = simulation.state.peons.filter(peon => peon.side === 'left').length;
+  const rightCount = simulation.state.peons.filter(peon => peon.side === 'right').length;
+  assert(leftCount === simulation.constants.SPAWN_COUNT + 1, 'left side wave size should increase by one after spawn upgrade');
+  assert(rightCount === simulation.constants.SPAWN_COUNT, 'right side wave size should remain base count without upgrade');
+});
+
 runTest('tick summary reflects end-of-tick hp loss after attacks are applied', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -368,6 +430,12 @@ runTest('tick summary reflects end-of-tick hp loss after attacks are applied', (
   assert(lastSummary.leftGold === simulation.state.leftGold, 'tick summary should include current left gold');
   assert(lastSummary.rightGold === simulation.state.rightGold, 'tick summary should include current right gold');
   assert(lastSummary.shrineControl === simulation.state.shrineControl, 'tick summary should include shrine control owner');
+  assert(lastSummary.leftDamageLevel === simulation.state.leftUpgrades.damageLevel, 'tick summary should include left damage level');
+  assert(lastSummary.leftHealthLevel === simulation.state.leftUpgrades.healthLevel, 'tick summary should include left health level');
+  assert(lastSummary.leftSpawnLevel === simulation.state.leftUpgrades.spawnLevel, 'tick summary should include left spawn level');
+  assert(lastSummary.rightDamageLevel === simulation.state.rightUpgrades.damageLevel, 'tick summary should include right damage level');
+  assert(lastSummary.rightHealthLevel === simulation.state.rightUpgrades.healthLevel, 'tick summary should include right health level');
+  assert(lastSummary.rightSpawnLevel === simulation.state.rightUpgrades.spawnLevel, 'tick summary should include right spawn level');
 });
 
 runTest('decision log respects max entry cap', () => {

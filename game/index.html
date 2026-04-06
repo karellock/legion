@@ -12,6 +12,22 @@
       <h1>Legion Game Prototype</h1>
       <p>Press V to toggle vision ranges.</p>
       <button id="downloadLogsBtn" type="button">Download Logs</button>
+      <div id="upgradeHud">
+        <div class="upgradeColumn" id="leftUpgradeColumn">
+          <h2>Blue Upgrades</h2>
+          <div class="upgradeSummary" id="leftUpgradeSummary">Gold 0 | D0 H0 S0</div>
+          <button id="leftUpgradeDamageBtn" type="button">Damage +5</button>
+          <button id="leftUpgradeHealthBtn" type="button">Health +50</button>
+          <button id="leftUpgradeSpawnBtn" type="button">Spawn +1</button>
+        </div>
+        <div class="upgradeColumn" id="rightUpgradeColumn">
+          <h2>Red Upgrades</h2>
+          <div class="upgradeSummary" id="rightUpgradeSummary">Gold 0 | D0 H0 S0</div>
+          <button id="rightUpgradeDamageBtn" type="button">Damage +5</button>
+          <button id="rightUpgradeHealthBtn" type="button">Health +50</button>
+          <button id="rightUpgradeSpawnBtn" type="button">Spawn +1</button>
+        </div>
+      </div>
     </div>
     <div id="tableWrap">
       <canvas id="gameCanvas" width="800" height="600"></canvas>
