@@ -1,4 +1,6 @@
 const { createSimulation } = require('../js/simulation.js');
+const fs = require('fs');
+const vm = require('vm');
 
 function assert(condition, message) {
   if (!condition) {
@@ -255,6 +257,92 @@ runTest('decision log respects max entry cap', () => {
   advanceTicks(simulation, 10);
 
   assert(simulation.getDecisionLog().length === 5, 'decision log should retain only the most recent entries up to cap');
+});
+
+runTest('decision log can be cleared and limited', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.setDecisionLogEnabled(true);
+  advanceTicks(simulation, 8);
+  const lastThree = simulation.getDecisionLog(3);
+  assert(lastThree.length === 3, 'expected limited decision log slice');
+
+  simulation.clearDecisionLog();
+  assert(simulation.getDecisionLog().length === 0, 'decision log should be empty after clear');
+});
+
+runTest('right peon targets left structure when lane is clear', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const rightPeon = simulation.addPeon('right', simulation.state.leftTower.x + 12, simulation.state.leftTower.y);
+  makeReady(rightPeon);
+  const leftTowerBefore = simulation.state.leftTower.health;
+
+  simulation.tick();
+
+  assert(rightPeon.target === simulation.state.leftTower, 'right peon should target left tower in clear lane');
+  assert(simulation.state.leftTower.health < leftTowerBefore, 'left tower should take damage from right peon');
+});
+
+runTest('tower and base record shot flashes and clear after ttl', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const rightNearLeftTower = simulation.addPeon('right', simulation.state.leftTower.x + 20, simulation.state.leftTower.y);
+  const rightNearLeftBase = simulation.addPeon('right', simulation.state.leftBase.x + 30, simulation.state.leftBase.y);
+  makeReady(rightNearLeftTower);
+  makeReady(rightNearLeftBase);
+  simulation.state.leftTower.ticksSinceLastAttack = simulation.state.leftTower.attackCooldown;
+  simulation.state.leftBase.ticksSinceLastAttack = simulation.state.leftBase.attackCooldown;
+
+  simulation.tick();
+
+  assert(simulation.state.leftTower.lastShotTarget, 'left tower should record a recent shot');
+  assert(simulation.state.leftBase.lastShotTarget, 'left base should record a recent shot');
+  assert(simulation.state.leftTower.shotFlashTicks > 0, 'left tower flash ttl should be active');
+  assert(simulation.state.leftBase.shotFlashTicks > 0, 'left base flash ttl should be active');
+
+  simulation.clearPeons();
+  advanceTicks(simulation, 5);
+
+  assert(simulation.state.leftTower.lastShotTarget === null, 'tower shot target should clear when flash expires');
+  assert(simulation.state.leftBase.lastShotTarget === null, 'base shot target should clear when flash expires');
+});
+
+runTest('tick removes invalid or out-of-lane peons', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const alivePeon = simulation.addPeon('left', 200, 200);
+  simulation.addPeon('left', Number.NaN, 200);
+  simulation.addPeon('left', 200, Number.POSITIVE_INFINITY);
+  simulation.addPeon('left', simulation.layout.laneRight + 200, 200);
+  simulation.addPeon('left', 200, simulation.layout.laneBottom + 100);
+  simulation.addPeon('right', 300, 200, { health: 0, maxHealth: 100 });
+
+  simulation.tick();
+
+  assert(simulation.state.peons.length === 1, 'only one valid peon should remain after filtering');
+  assert(simulation.state.peons[0] === alivePeon, 'remaining peon should be the valid one');
+});
+
+runTest('simulation attaches createSimulation to window when evaluated in browser-like context', () => {
+  const simulationSource = fs.readFileSync(require.resolve('../js/simulation.js'), 'utf8');
+  const context = {
+    window: {},
+    console,
+  };
+
+  vm.createContext(context);
+  vm.runInContext(simulationSource, context);
+
+  assert(typeof context.window.createSimulation === 'function', 'window.createSimulation should be defined in browser-like context');
 });
 
 if (process.exitCode && process.exitCode !== 0) {
