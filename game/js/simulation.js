@@ -730,7 +730,8 @@ function createSimulation(options = {}) {
         // Post-midline hunt: clear enemy peons on attacker side first, then structures.
         const enemiesOnAttackerSide = enemyPeons.filter(enemyPeon => isOnAttackerSide(peon, enemyPeon));
         const huntTarget = findNearestEnemyPeon(peon, enemiesOnAttackerSide, Number.POSITIVE_INFINITY);
-        desiredTarget = huntTarget || findStructureTargetForPeon(peon, true);
+        const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
+        desiredTarget = huntTarget || visibleEnemyTarget || findStructureTargetForPeon(peon, true);
       } else {
         const enemyPeonTarget = findNearestEnemyPeon(peon, enemyPeons);
         const structureTarget = enemyPeonTarget ? null : findStructureTargetForPeon(peon, false);
@@ -894,6 +895,8 @@ function createSimulation(options = {}) {
     clearDecisionLog,
     getDecisionLog,
     testHooks: {
+      findStructureTargetForPeon,
+      queueAttack,
       chooseMeleeAttackTarget,
       isTargetAttackable,
     },

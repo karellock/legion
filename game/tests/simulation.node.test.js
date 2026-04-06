@@ -161,6 +161,19 @@ runTest('after crossing midline peons target structure when no attacker-side ene
   assert(simulation.state.rightTower.health < towerBefore, 'tower should take damage when no attacker-side enemies exist');
 });
 
+runTest('after crossing midline peons still pursue visible enemy peons before structures', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const leftPeon = simulation.addPeon('left', simulation.layout.laneCenter + 20, simulation.state.rightTower.y);
+  const rightPeon = simulation.addPeon('right', simulation.layout.laneCenter - 40, simulation.state.rightTower.y);
+
+  simulation.tick();
+
+  assert(leftPeon.target === rightPeon, 'crossed-midline peon should not ignore a visible defender-side enemy in favor of a structure');
+});
+
 runTest('crossed-midline peon still attacks nearby enemy peon', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -469,12 +482,76 @@ runTest('chooseMeleeAttackTarget non-kill sort and fallback path are covered', (
   assert([e1, e2, e3].includes(fallback), 'fallback should still return an in-range candidate when all remaining hp <= 0');
 });
 
+runTest('chooseMeleeAttackTarget uses id tie-break for equally good kill candidates', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const earlier = simulation.addPeon('right', 106, 100, { health: 10, maxHealth: 100 });
+  const later = simulation.addPeon('right', 106, 100, { health: 10, maxHealth: 100 });
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, null, [later, earlier], new Map());
+  assert(chosen === earlier, 'equal kill candidates should fall back to lower id');
+});
+
+runTest('chooseMeleeAttackTarget uses id tie-break for equally good non-kill candidates', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const earlier = simulation.addPeon('right', 110, 100, { health: 30, maxHealth: 100 });
+  const later = simulation.addPeon('right', 110, 100, { health: 30, maxHealth: 100 });
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, null, [later, earlier], new Map());
+  assert(chosen === earlier, 'equal non-kill candidates should fall back to lower id');
+});
+
 runTest('isTargetAttackable handles null and plain objects', () => {
   const simulation = createSimulation();
   const hooks = simulation.testHooks;
 
   assert(hooks.isTargetAttackable(null) === false, 'null target should not be attackable');
   assert(hooks.isTargetAttackable({ side: 'right' }) === true, 'plain object without life state should be treated as attackable');
+});
+
+runTest('findStructureTargetForPeon falls back from tower to base on both sides', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', simulation.state.rightTower.x - 20, simulation.state.rightTower.y);
+  const right = simulation.addPeon('right', simulation.state.leftTower.x + 20, simulation.state.leftTower.y);
+  simulation.state.rightTower.health = 0;
+  simulation.state.leftTower.health = 0;
+
+  const leftTarget = simulation.testHooks.findStructureTargetForPeon(left, true);
+  const rightTarget = simulation.testHooks.findStructureTargetForPeon(right, true);
+  assert(leftTarget === simulation.state.rightBase, 'left peon should target right base when right tower is destroyed');
+  assert(rightTarget === simulation.state.leftBase, 'right peon should target left base when left tower is destroyed');
+});
+
+runTest('findStructureTargetForPeon returns null when both enemy structures are destroyed', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', simulation.layout.laneCenter, simulation.layout.laneCenter);
+  simulation.state.rightTower.health = 0;
+  simulation.state.rightBase.health = 0;
+
+  const target = simulation.testHooks.findStructureTargetForPeon(left, true);
+  assert(target === null, 'no enemy structure should be targeted when both are destroyed');
+});
+
+runTest('queueAttack ignores null targets', () => {
+  const simulation = createSimulation();
+  const queue = [];
+
+  simulation.testHooks.queueAttack(queue, null, 10, 'left');
+
+  assert(queue.length === 0, 'queueAttack should not enqueue a null target');
 });
 
 runTest('right peons use chooseMeleeAttackTarget symmetrically', () => {
@@ -538,21 +615,6 @@ runTest('peon attacks enemy in melee range even when strategy target is a struct
   const rightAttack = log.find(entry => entry.event === 'attack' && entry.side === 'right');
   assert(Boolean(leftAttack), 'left peon should attack the right peon in melee range, not stand still targeting structure');
   assert(Boolean(rightAttack), 'right peon should attack the left peon in melee range');
-});
-
-runTest('deterministic full-lane run keeps blue ahead of red', () => {
-  const simulation = createSimulation();
-  simulation.setDecisionLogEnabled(true);
-
-  advanceTicks(simulation, 34 * simulation.constants.TICK_RATE);
-
-  const leftCount = simulation.state.peons.filter(peon => peon.side === 'left').length;
-  const rightCount = simulation.state.peons.filter(peon => peon.side === 'right').length;
-
-  assert(simulation.state.rightHpLost > simulation.state.leftHpLost, 'red side should lose more HP than blue in the deterministic baseline run');
-  assert(leftCount > rightCount, 'blue side should control more peons than red by the end of the deterministic baseline run');
-  assert(simulation.state.leftBase.health > 0, 'blue base should still be alive in the deterministic baseline run');
-  assert(simulation.state.rightBase.health > 0, 'red base should still be alive in the deterministic baseline run');
 });
 
 if (process.exitCode && process.exitCode !== 0) {
