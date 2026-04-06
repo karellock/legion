@@ -289,6 +289,24 @@ runTest('hp lost telemetry counts actual damage after clamp', () => {
   assert(simulation.state.rightHpLost === 5, 'hp lost should reflect actual health removed, not raw outgoing damage');
 });
 
+runTest('tick summary reflects end-of-tick hp loss after attacks are applied', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setDecisionLogEnabled(true);
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  const rightPeon = simulation.addPeon('right', 400, 200);
+  makeReady(leftPeon);
+  makeReady(rightPeon);
+
+  simulation.tick();
+
+  const lastSummary = simulation.getDecisionLog().filter(entry => entry.event === 'tick-summary').at(-1);
+  assert(lastSummary.leftHpLost === simulation.state.leftHpLost, 'tick summary should match end-of-tick left hp lost');
+  assert(lastSummary.rightHpLost === simulation.state.rightHpLost, 'tick summary should match end-of-tick right hp lost');
+});
+
 runTest('decision log respects max entry cap', () => {
   const simulation = createSimulation();
   simulation.clearPeons();

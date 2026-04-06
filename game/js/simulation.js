@@ -710,14 +710,6 @@ function createSimulation(options = {}) {
     const attackQueue = [];
     const plannedDamage = new Map();
 
-    pushDecisionLog({
-      event: 'tick-summary',
-      leftPeons: enemyPeonsRight.length,
-      rightPeons: enemyPeonsLeft.length,
-      leftHpLost: state.leftHpLost,
-      rightHpLost: state.rightHpLost,
-    });
-
     for (const peon of livingPeons) {
       peon.update();
     }
@@ -842,6 +834,14 @@ function createSimulation(options = {}) {
         peon.move();
       }
     }
+
+      pushDecisionLog({
+        event: 'tick-summary',
+        leftPeons: state.peons.filter(peon => peon.side === 'left' && peon.isAlive() && !peon.isOffLane()).length,
+        rightPeons: state.peons.filter(peon => peon.side === 'right' && peon.isAlive() && !peon.isOffLane()).length,
+        leftHpLost: state.leftHpLost,
+        rightHpLost: state.rightHpLost,
+      });
 
     state.gameTime++;
   }
