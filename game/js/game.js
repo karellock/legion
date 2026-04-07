@@ -13,6 +13,13 @@ const upgradeSummaryEls = {
   left: null,
   right: null,
 };
+const botStrategy = {
+  left: 'none',
+  right: 'none',
+};
+let timeScale = 1;
+let selectedEntityRef = null;
+let selectionInfoEl = null;
 
 let lastFrameTime = 0;
 let tickDelta = 0;
@@ -28,6 +35,29 @@ window.legionDebug = {
   },
   getFlags() {
     return { ...debugFlags };
+  },
+  setTimeScale(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return timeScale;
+    }
+
+    timeScale = Math.max(0.25, Math.min(4, parsed));
+    return timeScale;
+  },
+  getTimeScale() {
+    return timeScale;
+  },
+  setBotStrategy(side, strategy) {
+    if ((side !== 'left' && side !== 'right') || !strategy) {
+      return false;
+    }
+
+    botStrategy[side] = strategy;
+    return true;
+  },
+  getBotStrategy() {
+    return { ...botStrategy };
   },
   setDecisionLog(value) {
     simulation.setDecisionLogEnabled(Boolean(value));
@@ -185,6 +215,192 @@ function setupUpgradeControls() {
   updateUpgradeHud();
 }
 
+function setupDevControls() {
+  const timeScaleRange = document.getElementById('timeScaleRange');
+  const timeScaleValue = document.getElementById('timeScaleValue');
+  const leftBotSelect = document.getElementById('leftBotStrategy');
+  const rightBotSelect = document.getElementById('rightBotStrategy');
+  selectionInfoEl = document.getElementById('selectionInfo');
+
+  if (timeScaleRange && timeScaleValue) {
+    const syncTimeScaleLabel = () => {
+      timeScaleValue.textContent = `${timeScale.toFixed(2)}x`;
+    };
+
+    timeScaleRange.addEventListener('input', event => {
+      const nextScale = Number(event.target.value);
+      if (Number.isFinite(nextScale) && nextScale > 0) {
+        timeScale = nextScale;
+      }
+      syncTimeScaleLabel();
+    });
+
+    syncTimeScaleLabel();
+  }
+
+  if (leftBotSelect) {
+    leftBotSelect.addEventListener('change', event => {
+      botStrategy.left = event.target.value;
+    });
+  }
+
+  if (rightBotSelect) {
+    rightBotSelect.addEventListener('change', event => {
+      botStrategy.right = event.target.value;
+    });
+  }
+
+  canvas.addEventListener('click', event => {
+    selectedEntityRef = pickEntityFromCanvasClick(event);
+    updateSelectionHud();
+  });
+}
+
+function nextUpgradeTypeForBot(side) {
+  const strategy = botStrategy[side];
+  const snapshot = simulation.getUpgradeSnapshot()[side];
+
+  if (strategy === 'damage-only') {
+    return 'damage';
+  }
+
+  if (strategy === 'health-only') {
+    return 'health';
+  }
+
+  if (strategy === 'spawn-only') {
+    return 'spawn';
+  }
+
+  if (strategy === 'balanced') {
+    const levels = [
+      { type: 'damage', level: snapshot.damageLevel },
+      { type: 'health', level: snapshot.healthLevel },
+      { type: 'spawn', level: snapshot.spawnLevel },
+    ];
+
+    levels.sort((a, b) => {
+      if (a.level !== b.level) {
+        return a.level - b.level;
+      }
+
+      return a.type.localeCompare(b.type);
+    });
+
+    return levels[0].type;
+  }
+
+  return null;
+}
+
+function runBotPurchasesForTick() {
+  // Run bots at 1 Hz to keep behavior readable while still deterministic by tick.
+  if (state.gameTime % constants.TICK_RATE !== 0) {
+    return;
+  }
+
+  for (const side of ['left', 'right']) {
+    const type = nextUpgradeTypeForBot(side);
+    if (!type) {
+      continue;
+    }
+
+    simulation.buyUpgrade(side, type);
+  }
+}
+
+function pickEntityFromCanvasClick(event) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+
+  const candidates = [];
+
+  for (const peon of state.peons) {
+    if (!peon.isAlive()) {
+      continue;
+    }
+
+    const dx = x - peon.x;
+    const dy = y - peon.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= peon.size + 4) {
+      candidates.push({ type: 'peon', entity: peon, distance });
+    }
+  }
+
+  const towerHitPadding = 6;
+  for (const tower of [state.leftTower, state.rightTower]) {
+    if (tower.isDestroyed()) {
+      continue;
+    }
+
+    const halfW = tower.width / 2 + towerHitPadding;
+    const halfH = tower.height / 2 + towerHitPadding;
+    if (x >= tower.x - halfW && x <= tower.x + halfW && y >= tower.y - halfH && y <= tower.y + halfH) {
+      const dx = x - tower.x;
+      const dy = y - tower.y;
+      candidates.push({ type: 'tower', entity: tower, distance: Math.sqrt(dx * dx + dy * dy) });
+    }
+  }
+
+  for (const base of [state.leftBase, state.rightBase]) {
+    if (base.isDestroyed()) {
+      continue;
+    }
+
+    const dx = x - base.x;
+    const dy = y - base.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= base.size + 6) {
+      candidates.push({ type: 'base', entity: base, distance });
+    }
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((a, b) => a.distance - b.distance);
+  return candidates[0];
+}
+
+function updateSelectionHud() {
+  if (!selectionInfoEl) {
+    return;
+  }
+
+  if (!selectedEntityRef) {
+    selectionInfoEl.textContent = 'Click a unit or structure to inspect stats.';
+    return;
+  }
+
+  const { type, entity } = selectedEntityRef;
+  if (!entity) {
+    selectionInfoEl.textContent = 'Selection unavailable.';
+    return;
+  }
+
+  if (type === 'peon' && !entity.isAlive()) {
+    selectionInfoEl.textContent = 'Selected peon died.';
+    return;
+  }
+
+  if ((type === 'tower' || type === 'base') && entity.isDestroyed()) {
+    selectionInfoEl.textContent = `Selected ${type} is destroyed.`;
+    return;
+  }
+
+  const hp = `${entity.health}/${entity.maxHealth}`;
+  const dmg = Number.isFinite(entity.damage) ? entity.damage : '-';
+  const range = Number.isFinite(entity.attackRange) ? entity.attackRange : '-';
+  const side = entity.side ?? '-';
+  const id = Number.isFinite(entity.id) ? entity.id : '-';
+  selectionInfoEl.textContent = `${type.toUpperCase()} #${id} | side ${side} | HP ${hp} | DMG ${dmg} | RNG ${range}`;
+}
+
 function updateUpgradeHud() {
   const snapshot = simulation.getUpgradeSnapshot();
 
@@ -217,15 +433,17 @@ function gameLoop(currentTime) {
 
   const deltaMs = currentTime - lastFrameTime;
   lastFrameTime = currentTime;
-  const cappedDelta = Math.min(deltaMs, 100);
+  const cappedDelta = Math.min(deltaMs, 100) * timeScale;
   tickDelta += cappedDelta;
 
   while (tickDelta >= constants.TICK_DURATION) {
     simulation.tick();
+    runBotPurchasesForTick();
     tickDelta -= constants.TICK_DURATION;
   }
 
   updateUpgradeHud();
+  updateSelectionHud();
 
   render();
   requestAnimationFrame(gameLoop);
@@ -491,6 +709,7 @@ function init() {
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
   simulation.setDecisionLogEnabled(true);
   setupUpgradeControls();
+  setupDevControls();
   fitTableToWindow();
   requestAnimationFrame(gameLoop);
 }
