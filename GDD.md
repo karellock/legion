@@ -22,16 +22,22 @@ This document describes the design for the Legion game prototype.
   - Cost scaling: 50g base, doubling per level for each upgrade track.
   - Implemented tracks: Damage (+5 per level), Health (+50 per level), Spawn Count (+1 per level).
   - On-screen controls for Blue/Red upgrade purchases during manual tests.
+- Dev support tooling:
+  - Click-to-inspect entity panel for units and structures (HP, damage, range, side, id).
+  - Time-scale control (0.25x to 4x) for pacing and balance iteration.
+  - Scripted AI spending bots (damage-only, health-only, spawn-only, balanced) for both sides.
 
 ### Not Done Yet
 
+- Priority now: finish remaining feature work first, then run balancing and match pacing passes.
 - Upgrade system and scaling costs:
   - Super Peon unlock
 - Super Peon gameplay implementation.
+
+### Postponed
+
 - Time-based spawn interval ramp (3s -> 2s -> 1s by minute milestones).
-- On-screen upgrade controls and unit stat inspection UX.
-- Time-scaling (slow/fast) control for balancing passes.
-- AI spending bots with scripted build orders.
+  - Reason: with current tuning, matches rarely reach minute 5; resume after remaining features are in and pacing/balance passes begin.
 
 ## Tech Stack & Architecture
 

@@ -44,6 +44,62 @@ body {
   background: #2a2a2a;
 }
 
+#devToolsHud {
+  margin-top: 8px;
+  border: 1px solid #2f2f2f;
+  border-radius: 6px;
+  padding: 8px;
+  background: #171717;
+  display: grid;
+  gap: 6px;
+}
+
+.devToolRow {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.devToolRow span {
+  color: #d7d7d7;
+}
+
+.devToolRow input[type='range'] {
+  width: 100%;
+}
+
+.devToolRow select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid #3f3f3f;
+  background: #1f1f1f;
+  color: #f5f5f5;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+#selectionHud {
+  margin-top: 8px;
+  border: 1px solid #2f2f2f;
+  border-radius: 6px;
+  padding: 8px;
+  background: #171717;
+}
+
+#selectionHud h2 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#selectionInfo {
+  font-size: 12px;
+  color: #d7d7d7;
+  min-height: 30px;
+}
+
 #upgradeHud {
   margin-top: 8px;
   display: grid;

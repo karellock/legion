@@ -12,6 +12,33 @@
       <h1>Legion Game Prototype</h1>
       <p>Press V to toggle vision ranges.</p>
       <button id="downloadLogsBtn" type="button">Download Logs</button>
+      <div id="devToolsHud">
+        <label class="devToolRow" for="timeScaleRange">
+          <span>Time Scale</span>
+          <input id="timeScaleRange" type="range" min="0.25" max="4" step="0.25" value="1" />
+          <strong id="timeScaleValue">1.00x</strong>
+        </label>
+        <label class="devToolRow" for="leftBotStrategy">
+          <span>Blue Bot</span>
+          <select id="leftBotStrategy">
+            <option value="none">None</option>
+            <option value="damage-only">Damage Only</option>
+            <option value="health-only">Health Only</option>
+            <option value="spawn-only">Spawn Only</option>
+            <option value="balanced">Balanced</option>
+          </select>
+        </label>
+        <label class="devToolRow" for="rightBotStrategy">
+          <span>Red Bot</span>
+          <select id="rightBotStrategy">
+            <option value="none">None</option>
+            <option value="damage-only">Damage Only</option>
+            <option value="health-only">Health Only</option>
+            <option value="spawn-only">Spawn Only</option>
+            <option value="balanced">Balanced</option>
+          </select>
+        </label>
+      </div>
       <div id="upgradeHud">
         <div class="upgradeColumn" id="leftUpgradeColumn">
           <h2>Blue Upgrades</h2>
@@ -27,6 +54,10 @@
           <button id="rightUpgradeHealthBtn" type="button">Health +50</button>
           <button id="rightUpgradeSpawnBtn" type="button">Spawn +1</button>
         </div>
+      </div>
+      <div id="selectionHud">
+        <h2>Selection</h2>
+        <div id="selectionInfo">Click a unit or structure to inspect stats.</div>
       </div>
     </div>
     <div id="tableWrap">
