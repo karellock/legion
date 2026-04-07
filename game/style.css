@@ -44,6 +44,59 @@ body {
   background: #2a2a2a;
 }
 
+#upgradeHud {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.upgradeColumn {
+  border: 1px solid #2f2f2f;
+  border-radius: 6px;
+  padding: 8px;
+  background: #171717;
+  display: grid;
+  gap: 6px;
+}
+
+.upgradeColumn h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.upgradeSummary {
+  font-size: 12px;
+  color: #b7b7b7;
+}
+
+.upgradeColumn button {
+  padding: 6px 10px;
+  border: 1px solid #3f3f3f;
+  background: #1f1f1f;
+  color: #f5f5f5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.upgradeColumn button:hover {
+  background: #2a2a2a;
+}
+
+.upgradeColumn button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  #upgradeHud {
+    grid-template-columns: 1fr;
+  }
+}
+
 #tableWrap {
   flex: 1;
   display: flex;

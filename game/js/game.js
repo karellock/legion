@@ -8,6 +8,11 @@ const BASE_CANVAS_HEIGHT = canvas.height;
 const debugFlags = {
   showVisionRanges: false,
 };
+const upgradeButtons = [];
+const upgradeSummaryEls = {
+  left: null,
+  right: null,
+};
 
 let lastFrameTime = 0;
 let tickDelta = 0;
@@ -84,6 +89,7 @@ window.legionDebug = {
 };
 
 function downloadRunLogs() {
+  const upgrades = simulation.getUpgradeSnapshot();
   const payload = {
     timestamp: new Date().toISOString(),
     version: GAME_VERSION,
@@ -94,6 +100,8 @@ function downloadRunLogs() {
     leftGold: state.leftGold,
     rightGold: state.rightGold,
     shrineControl: state.shrineControl,
+    leftUpgrades: upgrades.left,
+    rightUpgrades: upgrades.right,
     leftPeons: state.peons.filter(peon => peon.side === 'left').length,
     rightPeons: state.peons.filter(peon => peon.side === 'right').length,
     entries: simulation.getDecisionLog(),
@@ -136,6 +144,72 @@ function fitTableToWindow() {
 
 window.addEventListener('resize', fitTableToWindow);
 
+function formatUpgradeButtonLabel(type, cost) {
+  if (type === 'damage') {
+    return `Damage +5 (${cost}g)`;
+  }
+
+  if (type === 'health') {
+    return `Health +50 (${cost}g)`;
+  }
+
+  return `Spawn +1 (${cost}g)`;
+}
+
+function setupUpgradeControls() {
+  const defs = [
+    { id: 'leftUpgradeDamageBtn', side: 'left', type: 'damage' },
+    { id: 'leftUpgradeHealthBtn', side: 'left', type: 'health' },
+    { id: 'leftUpgradeSpawnBtn', side: 'left', type: 'spawn' },
+    { id: 'rightUpgradeDamageBtn', side: 'right', type: 'damage' },
+    { id: 'rightUpgradeHealthBtn', side: 'right', type: 'health' },
+    { id: 'rightUpgradeSpawnBtn', side: 'right', type: 'spawn' },
+  ];
+
+  for (const def of defs) {
+    const button = document.getElementById(def.id);
+    if (!button) {
+      continue;
+    }
+
+    button.addEventListener('click', () => {
+      simulation.buyUpgrade(def.side, def.type);
+      updateUpgradeHud();
+    });
+
+    upgradeButtons.push({ ...def, button });
+  }
+
+  upgradeSummaryEls.left = document.getElementById('leftUpgradeSummary');
+  upgradeSummaryEls.right = document.getElementById('rightUpgradeSummary');
+  updateUpgradeHud();
+}
+
+function updateUpgradeHud() {
+  const snapshot = simulation.getUpgradeSnapshot();
+
+  if (upgradeSummaryEls.left) {
+    upgradeSummaryEls.left.textContent = `Gold ${state.leftGold} | D${snapshot.left.damageLevel} H${snapshot.left.healthLevel} S${snapshot.left.spawnLevel}`;
+  }
+
+  if (upgradeSummaryEls.right) {
+    upgradeSummaryEls.right.textContent = `Gold ${state.rightGold} | D${snapshot.right.damageLevel} H${snapshot.right.healthLevel} S${snapshot.right.spawnLevel}`;
+  }
+
+  for (const entry of upgradeButtons) {
+    const sideSnapshot = snapshot[entry.side];
+    const costKey = entry.type === 'damage'
+      ? 'nextDamageCost'
+      : entry.type === 'health'
+        ? 'nextHealthCost'
+        : 'nextSpawnCost';
+    const cost = sideSnapshot[costKey];
+    const currentGold = entry.side === 'left' ? state.leftGold : state.rightGold;
+    entry.button.textContent = formatUpgradeButtonLabel(entry.type, cost);
+    entry.button.disabled = currentGold < cost;
+  }
+}
+
 function gameLoop(currentTime) {
   if (lastFrameTime === 0) {
     lastFrameTime = currentTime;
@@ -150,6 +224,8 @@ function gameLoop(currentTime) {
     simulation.tick();
     tickDelta -= constants.TICK_DURATION;
   }
+
+  updateUpgradeHud();
 
   render();
   requestAnimationFrame(gameLoop);
@@ -414,6 +490,7 @@ function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
   simulation.setDecisionLogEnabled(true);
+  setupUpgradeControls();
   fitTableToWindow();
   requestAnimationFrame(gameLoop);
 }
