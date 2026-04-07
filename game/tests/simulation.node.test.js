@@ -642,6 +642,19 @@ runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp'
   assert(chosen === lowHp, 'lowest executable kill hp should win among kill candidates');
 });
 
+runTest('chooseMeleeAttackTarget kill-candidate tie uses distance as secondary sort', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100, { damage: 10 });
+  const fartherKill = simulation.addPeon('right', 109, 100, { health: 10, maxHealth: 100 });
+  const nearerKill = simulation.addPeon('right', 105, 100, { health: 10, maxHealth: 100 });
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, null, [fartherKill, nearerKill], new Map());
+  assert(chosen === nearerKill, 'when kill candidates have equal remaining hp, the nearer target should be chosen');
+});
+
 runTest('chooseMeleeAttackTarget non-kill sort and fallback path are covered', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -692,6 +705,36 @@ runTest('isTargetAttackable handles null and plain objects', () => {
 
   assert(hooks.isTargetAttackable(null) === false, 'null target should not be attackable');
   assert(hooks.isTargetAttackable({ side: 'right' }) === true, 'plain object without life state should be treated as attackable');
+});
+
+runTest('entityType covers null, tower, peon, and base variants', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  const hooks = simulation.testHooks;
+
+  const leftPeon = simulation.addPeon('left', 200, 200);
+
+  assert(hooks.entityType(null) === null, 'null should map to null entity type');
+  assert(hooks.entityType(simulation.state.leftTower) === 'tower', 'tower should map to tower entity type');
+  assert(hooks.entityType(leftPeon) === 'peon', 'peon should map to peon entity type');
+  assert(hooks.entityType(simulation.state.leftBase) === 'base', 'base should map to base entity type');
+});
+
+runTest('findNearestEnemyPeon skips dead enemies and uses id tie-break on equal distance', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  const hooks = simulation.testHooks;
+
+  const left = simulation.addPeon('left', 100, 100);
+  const deadEnemy = simulation.addPeon('right', 104, 100, { health: 0, maxHealth: 100 });
+  const tieA = simulation.addPeon('right', 110, 100);
+  const tieB = simulation.addPeon('right', 90, 100);
+
+  const chosen = hooks.findNearestEnemyPeon(left, [deadEnemy, tieB, tieA], 30);
+  const expected = tieA.id < tieB.id ? tieA : tieB;
+  assert(chosen === expected, 'nearest selection should ignore dead units and use lower id for equal-distance ties');
 });
 
 runTest('findStructureTargetForPeon falls back from tower to base on both sides', () => {

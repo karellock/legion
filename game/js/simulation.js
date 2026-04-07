@@ -1092,6 +1092,8 @@ function createSimulation(options = {}) {
     clearDecisionLog,
     getDecisionLog,
     testHooks: {
+      entityType,
+      findNearestEnemyPeon,
       findDesiredTargetForPeon,
       findStructureTargetForPeon,
       queueAttack,
