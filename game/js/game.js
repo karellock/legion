@@ -21,9 +21,11 @@ const botStrategy = {
 let timeScale = 1;
 let selectedEntityRef = null;
 let selectionInfoEl = null;
+
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
 const smoothedAngles = new WeakMap();
+
 
 let lastFrameTime = 0;
 let tickDelta = 0;
