@@ -12,7 +12,7 @@ function createSimulation(options = {}) {
     PEON_SPEED: 50,
     PEON_SIZE: 6,
     PEON_HP: 100,
-    PEON_DAMAGE: 10,
+    PEON_DAMAGE: 9,
     PEON_ATTACK_RATE: 1,
     PEON_ATTACK_RANGE: 16,
     PEON_VISION_RANGE: 90,

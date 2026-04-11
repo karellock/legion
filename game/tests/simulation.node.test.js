@@ -338,7 +338,7 @@ runTest('melee attackers avoid lethal overkill when another target is available'
   simulation.tick();
 
   assert(!rightWeak.isAlive(), 'weak target should be killed');
-  assert(rightStrong.health === 90, 'second hit should be redirected to another in-range target');
+  assert(rightStrong.health === 91, 'second hit should be redirected to another in-range target');
 });
 
 runTest('slash effects are created and expire', () => {

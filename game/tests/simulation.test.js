@@ -79,7 +79,7 @@ runTest('upgrades use smaller +1 damage and +5 health steps', () => {
 
   assert(damageBuy.cost === 20, 'first damage upgrade should cost 20 gold');
   assert(healthBuy.cost === 20, 'first health upgrade should cost 20 gold');
-  assert(upgradedPeon.damage === 11, 'one damage upgrade should add 1 damage');
+  assert(upgradedPeon.damage === 10, 'one damage upgrade should add 1 damage');
   assert(upgradedPeon.maxHealth === 105, 'one health upgrade should add 5 max hp');
 });
 
