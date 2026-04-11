@@ -55,6 +55,8 @@ const smoothedAngles = new WeakMap();
 
 let lastFrameTime = 0;
 let tickDelta = 0;
+let renderScaleX = 1;
+let renderScaleY = 1;
 
 window.legionDebug = {
   toggleVisionRanges() {
@@ -345,8 +347,22 @@ function fitTableToWindow() {
   const availableHeight = Math.max(150, bounds.height - 16);
 
   const scale = Math.min(availableWidth / BASE_CANVAS_WIDTH, availableHeight / BASE_CANVAS_HEIGHT);
-  canvas.style.width = `${Math.floor(BASE_CANVAS_WIDTH * scale)}px`;
-  canvas.style.height = `${Math.floor(BASE_CANVAS_HEIGHT * scale)}px`;
+  const displayWidth = Math.max(1, Math.floor(BASE_CANVAS_WIDTH * scale));
+  const displayHeight = Math.max(1, Math.floor(BASE_CANVAS_HEIGHT * scale));
+  const devicePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  const backingWidth = Math.max(1, Math.round(displayWidth * devicePixelRatio));
+  const backingHeight = Math.max(1, Math.round(displayHeight * devicePixelRatio));
+
+  canvas.style.width = `${displayWidth}px`;
+  canvas.style.height = `${displayHeight}px`;
+
+  if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+    canvas.width = backingWidth;
+    canvas.height = backingHeight;
+  }
+
+  renderScaleX = backingWidth / BASE_CANVAS_WIDTH;
+  renderScaleY = backingHeight / BASE_CANVAS_HEIGHT;
 }
 
 window.addEventListener('resize', fitTableToWindow);
@@ -677,8 +693,8 @@ function runBotPurchasesForTick() {
 
 function pickEntityFromCanvasClick(event) {
   const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+  const scaleX = BASE_CANVAS_WIDTH / rect.width;
+  const scaleY = BASE_CANVAS_HEIGHT / rect.height;
   const x = (event.clientX - rect.left) * scaleX;
   const y = (event.clientY - rect.top) * scaleY;
 
@@ -821,8 +837,9 @@ function gameLoop(currentTime) {
  * Render the current game state to canvas.
  */
 function render() {
+  ctx.setTransform(renderScaleX, 0, 0, renderScaleY, 0, 0);
   ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, BASE_CANVAS_WIDTH, BASE_CANVAS_HEIGHT);
 
   drawLane();
 
@@ -859,7 +876,7 @@ function drawPauseBadge() {
   const badgeText = pausedByMatchEnd ? 'PAUSED - MATCH END' : 'PAUSED - TIME SCALE 0x';
   const badgeWidth = 260;
   const badgeHeight = 34;
-  const badgeX = Math.round((canvas.width - badgeWidth) / 2);
+  const badgeX = Math.round((BASE_CANVAS_WIDTH - badgeWidth) / 2);
   const badgeY = 10;
 
   ctx.save();
@@ -1349,8 +1366,8 @@ function drawDebugText() {
 
   // Right-side combat telemetry for balancing/debugging.
   ctx.textAlign = 'right';
-  ctx.fillText(`Blue HP lost: ${state.leftHpLost}`, canvas.width - 8, 16);
-  ctx.fillText(`Red HP lost: ${state.rightHpLost}`, canvas.width - 8, 32);
+  ctx.fillText(`Blue HP lost: ${state.leftHpLost}`, BASE_CANVAS_WIDTH - 8, 16);
+  ctx.fillText(`Red HP lost: ${state.rightHpLost}`, BASE_CANVAS_WIDTH - 8, 32);
   ctx.textAlign = 'left';
 }
 
