@@ -450,7 +450,7 @@ function updateBalanceConfigHud() {
   const baseRamp = constants.BASE_DAMAGE_PER_MINUTE.toFixed(1);
   const goldSummary = `Gold U${constants.UPGRADE_BASE_COST} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
 
-  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (space ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
 }
 
 function setupDevControls() {

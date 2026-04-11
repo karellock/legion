@@ -70,6 +70,18 @@ runTest('spawn layout can be updated at runtime', () => {
     'spawned peons should stay within updated spawn slot range');
 });
 
+runTest('spawn space 0 collapses all spawn slots to lane center', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const result = simulation.setSpawnLayout({ padding: 0, slotCount: 7 });
+  const laneCenterY = (simulation.layout.laneTop + simulation.layout.laneBottom) / 2;
+
+  assert(result.slots.length === 7, 'slot count should stay configurable when spawn space is zero');
+  assert(result.slots.every(y => y === laneCenterY), 'all spawn slots should collapse to lane center when spawn space is zero');
+});
+
 runTest('structure damage scaling can be updated at runtime', () => {
   const simulation = createSimulation({
     towerDamagePerMinute: 1.2,

@@ -40,7 +40,7 @@ function createSimulation(options = {}) {
     BASE_DAMAGE_PER_MINUTE: Math.max(0, Number(options.baseDamagePerMinute ?? 0.6)),
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
-    SPAWN_SLOT_PADDING: 0,
+    SPAWN_SLOT_PADDING: Math.floor((height - 100) / 2),
     SPAWN_SLOT_COUNT: 7,
     HIT_FLASH_TOTAL_TICKS: 18,
     HIT_FLASH_HOLD_TICKS: 3,
@@ -346,10 +346,11 @@ function createSimulation(options = {}) {
 
   function createSpawnSlots() {
     const laneHeight = constants.LANE_BOTTOM - constants.LANE_TOP;
-    const maxPadding = Math.max(0, Math.floor(laneHeight / 2) - 2);
-    const clampedPadding = Math.max(0, Math.min(constants.SPAWN_SLOT_PADDING, maxPadding));
-    const usableTop = constants.LANE_TOP + clampedPadding;
-    const usableBottom = constants.LANE_BOTTOM - clampedPadding;
+    const laneCenterY = (constants.LANE_TOP + constants.LANE_BOTTOM) / 2;
+    const maxSpread = Math.max(0, Math.floor(laneHeight / 2) - 2);
+    const clampedSpread = Math.max(0, Math.min(constants.SPAWN_SLOT_PADDING, maxSpread));
+    const usableTop = laneCenterY - clampedSpread;
+    const usableBottom = laneCenterY + clampedSpread;
     const slotCount = Math.max(2, constants.SPAWN_SLOT_COUNT);
     const step = (usableBottom - usableTop) / (slotCount - 1);
     const slots = [];
