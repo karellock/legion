@@ -35,6 +35,12 @@ let towerDamagePerMinuteRangeEl = null;
 let towerDamagePerMinuteValueEl = null;
 let baseDamagePerMinuteRangeEl = null;
 let baseDamagePerMinuteValueEl = null;
+let upgradeBaseCostRangeEl = null;
+let upgradeBaseCostValueEl = null;
+let killBountyGoldRangeEl = null;
+let killBountyGoldValueEl = null;
+let shrineGoldPerSecondRangeEl = null;
+let shrineGoldPerSecondValueEl = null;
 let matchResultPanelEl = null;
 let matchResultTitleEl = null;
 let matchResultSummaryEl = null;
@@ -95,6 +101,16 @@ window.legionDebug = {
       towerDamagePerMinute,
       baseDamagePerMinute,
     });
+    updateBalanceConfigHud();
+    return result;
+  },
+  setEconomyValues(killBountyGold, shrineGoldPerSecond, upgradeBaseCost) {
+    const result = simulation.setEconomyValues({
+      killBountyGold,
+      shrineGoldPerSecond,
+      upgradeBaseCost,
+    });
+    updateUpgradeHud();
     updateBalanceConfigHud();
     return result;
   },
@@ -416,8 +432,9 @@ function updateBalanceConfigHud() {
   const liveBaseDamage = (constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE).toFixed(1);
   const towerRamp = constants.TOWER_DAMAGE_PER_MINUTE.toFixed(1);
   const baseRamp = constants.BASE_DAMAGE_PER_MINUTE.toFixed(1);
+  const goldSummary = `Gold U${constants.UPGRADE_BASE_COST} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
 
-  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
 }
 
 function setupDevControls() {
@@ -433,6 +450,12 @@ function setupDevControls() {
   towerDamagePerMinuteValueEl = document.getElementById('towerDamagePerMinuteValue');
   baseDamagePerMinuteRangeEl = document.getElementById('baseDamagePerMinuteRange');
   baseDamagePerMinuteValueEl = document.getElementById('baseDamagePerMinuteValue');
+  upgradeBaseCostRangeEl = document.getElementById('upgradeBaseCostRange');
+  upgradeBaseCostValueEl = document.getElementById('upgradeBaseCostValue');
+  killBountyGoldRangeEl = document.getElementById('killBountyGoldRange');
+  killBountyGoldValueEl = document.getElementById('killBountyGoldValue');
+  shrineGoldPerSecondRangeEl = document.getElementById('shrineGoldPerSecondRange');
+  shrineGoldPerSecondValueEl = document.getElementById('shrineGoldPerSecondValue');
   selectionInfoEl = document.getElementById('selectionInfo');
 
   if (timeScaleRange && timeScaleValue) {
@@ -518,6 +541,49 @@ function setupDevControls() {
     updateBalanceConfigHud();
   };
 
+  const syncEconomyControls = () => {
+    if (upgradeBaseCostValueEl) {
+      upgradeBaseCostValueEl.textContent = String(constants.UPGRADE_BASE_COST);
+    }
+    if (killBountyGoldValueEl) {
+      killBountyGoldValueEl.textContent = String(constants.KILL_BOUNTY_GOLD);
+    }
+    if (shrineGoldPerSecondValueEl) {
+      shrineGoldPerSecondValueEl.textContent = String(constants.SHRINE_GOLD_PER_SECOND);
+    }
+    if (upgradeBaseCostRangeEl) {
+      upgradeBaseCostRangeEl.value = String(constants.UPGRADE_BASE_COST);
+    }
+    if (killBountyGoldRangeEl) {
+      killBountyGoldRangeEl.value = String(constants.KILL_BOUNTY_GOLD);
+    }
+    if (shrineGoldPerSecondRangeEl) {
+      shrineGoldPerSecondRangeEl.value = String(constants.SHRINE_GOLD_PER_SECOND);
+    }
+  };
+
+  const applyEconomyFromControls = () => {
+    const nextUpgradeBaseCost = upgradeBaseCostRangeEl
+      ? Number(upgradeBaseCostRangeEl.value)
+      : constants.UPGRADE_BASE_COST;
+    const nextKillBountyGold = killBountyGoldRangeEl
+      ? Number(killBountyGoldRangeEl.value)
+      : constants.KILL_BOUNTY_GOLD;
+    const nextShrineGoldPerSecond = shrineGoldPerSecondRangeEl
+      ? Number(shrineGoldPerSecondRangeEl.value)
+      : constants.SHRINE_GOLD_PER_SECOND;
+
+    simulation.setEconomyValues({
+      upgradeBaseCost: nextUpgradeBaseCost,
+      killBountyGold: nextKillBountyGold,
+      shrineGoldPerSecond: nextShrineGoldPerSecond,
+    });
+
+    syncEconomyControls();
+    updateUpgradeHud();
+    updateBalanceConfigHud();
+  };
+
   if (spawnPaddingRangeEl) {
     spawnPaddingRangeEl.addEventListener('input', applySpawnLayoutFromControls);
   }
@@ -534,8 +600,21 @@ function setupDevControls() {
     baseDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
   }
 
+  if (upgradeBaseCostRangeEl) {
+    upgradeBaseCostRangeEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (killBountyGoldRangeEl) {
+    killBountyGoldRangeEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (shrineGoldPerSecondRangeEl) {
+    shrineGoldPerSecondRangeEl.addEventListener('input', applyEconomyFromControls);
+  }
+
   syncSpawnControls();
   syncStructureDamageControls();
+  syncEconomyControls();
 
   canvas.addEventListener('click', event => {
     selectedEntityRef = pickEntityFromCanvasClick(event);

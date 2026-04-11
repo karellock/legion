@@ -416,6 +416,30 @@ function createSimulation(options = {}) {
     };
   }
 
+  function setEconomyValues(config = {}) {
+    const nextKillBountyGold = Number(config.killBountyGold);
+    const nextShrineGoldPerSecond = Number(config.shrineGoldPerSecond);
+    const nextUpgradeBaseCost = Number(config.upgradeBaseCost);
+
+    if (Number.isFinite(nextKillBountyGold)) {
+      constants.KILL_BOUNTY_GOLD = Math.max(0, Math.round(nextKillBountyGold));
+    }
+
+    if (Number.isFinite(nextShrineGoldPerSecond)) {
+      constants.SHRINE_GOLD_PER_SECOND = Math.max(0, Math.round(nextShrineGoldPerSecond));
+    }
+
+    if (Number.isFinite(nextUpgradeBaseCost)) {
+      constants.UPGRADE_BASE_COST = Math.max(0, Math.round(nextUpgradeBaseCost));
+    }
+
+    return {
+      killBountyGold: constants.KILL_BOUNTY_GOLD,
+      shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
+      upgradeBaseCost: constants.UPGRADE_BASE_COST,
+    };
+  }
+
   function currentElapsedMinutes() {
     return state.gameTime / (constants.TICK_RATE * 60);
   }
@@ -1203,6 +1227,7 @@ function createSimulation(options = {}) {
     spawnUnits,
     setSpawnLayout,
     setStructureDamageScaling,
+    setEconomyValues,
     buyUpgrade,
     getUpgradeSnapshot,
     initEntities,

@@ -96,6 +96,24 @@ runTest('structure damage scaling can be updated at runtime', () => {
     'base live damage should scale up over time after runtime update');
 });
 
+runTest('economy values can be updated at runtime', () => {
+  const simulation = createSimulation();
+
+  const result = simulation.setEconomyValues({
+    upgradeBaseCost: 35,
+    killBountyGold: 14,
+    shrineGoldPerSecond: 5,
+  });
+
+  assert(result.upgradeBaseCost === 35, 'upgrade base cost should update at runtime');
+  assert(result.killBountyGold === 14, 'kill bounty gold should update at runtime');
+  assert(result.shrineGoldPerSecond === 5, 'shrine gold income should update at runtime');
+  assert(simulation.constants.UPGRADE_BASE_COST === 35, 'upgrade base cost constant should be updated');
+  assert(simulation.constants.KILL_BOUNTY_GOLD === 14, 'kill bounty constant should be updated');
+  assert(simulation.constants.SHRINE_GOLD_PER_SECOND === 5, 'shrine income constant should be updated');
+  assert(simulation.getUpgradeSnapshot().left.nextDamageCost === 35, 'next upgrade cost should reflect updated base cost');
+});
+
 runTest('peons spawn with symmetric HP on both sides', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
