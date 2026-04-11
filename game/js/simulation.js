@@ -36,6 +36,8 @@ function createSimulation(options = {}) {
     UPGRADE_SPAWN_COST_MULTIPLIER: 1,
     STRUCTURE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.structureDamageGraceSeconds ?? 0) * 60)),
     BASE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.baseDamageGraceSeconds ?? 0) * 60)),
+    TOWER_DAMAGE_PER_MINUTE: Math.max(0, Number(options.towerDamagePerMinute ?? 1.2)),
+    BASE_DAMAGE_PER_MINUTE: Math.max(0, Number(options.baseDamagePerMinute ?? 0.6)),
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
     SPAWN_SLOT_PADDING: 0,
@@ -343,8 +345,11 @@ function createSimulation(options = {}) {
   }
 
   function createSpawnSlots() {
-    const usableTop = constants.LANE_TOP + constants.SPAWN_SLOT_PADDING;
-    const usableBottom = constants.LANE_BOTTOM - constants.SPAWN_SLOT_PADDING;
+    const laneHeight = constants.LANE_BOTTOM - constants.LANE_TOP;
+    const maxPadding = Math.max(0, Math.floor(laneHeight / 2) - 2);
+    const clampedPadding = Math.max(0, Math.min(constants.SPAWN_SLOT_PADDING, maxPadding));
+    const usableTop = constants.LANE_TOP + clampedPadding;
+    const usableBottom = constants.LANE_BOTTOM - clampedPadding;
     const slotCount = Math.max(2, constants.SPAWN_SLOT_COUNT);
     const step = (usableBottom - usableTop) / (slotCount - 1);
     const slots = [];
@@ -356,7 +361,55 @@ function createSimulation(options = {}) {
     return slots;
   }
 
-  const spawnSlots = createSpawnSlots();
+  const spawnSlots = [];
+
+  function rebuildSpawnSlots() {
+    const nextSlots = createSpawnSlots();
+    spawnSlots.splice(0, spawnSlots.length, ...nextSlots);
+
+    if (spawnSlots.length > 0) {
+      state.leftSpawnSlotIndex = state.leftSpawnSlotIndex % spawnSlots.length;
+      state.rightSpawnSlotIndex = state.rightSpawnSlotIndex % spawnSlots.length;
+    }
+
+    return spawnSlots;
+  }
+
+  function setSpawnLayout(config = {}) {
+    const nextPadding = Number(config.padding);
+    const nextSlotCount = Number(config.slotCount);
+
+    if (Number.isFinite(nextPadding)) {
+      constants.SPAWN_SLOT_PADDING = Math.max(0, Math.floor(nextPadding));
+    }
+
+    if (Number.isFinite(nextSlotCount)) {
+      constants.SPAWN_SLOT_COUNT = Math.max(2, Math.floor(nextSlotCount));
+    }
+
+    rebuildSpawnSlots();
+
+    return {
+      padding: constants.SPAWN_SLOT_PADDING,
+      slotCount: constants.SPAWN_SLOT_COUNT,
+      slots: spawnSlots.slice(),
+    };
+  }
+
+  function currentElapsedMinutes() {
+    return state.gameTime / (constants.TICK_RATE * 60);
+  }
+
+  function updateStructureDamageByTime() {
+    const elapsedMinutes = currentElapsedMinutes();
+    const towerDamage = constants.TOWER_DAMAGE + elapsedMinutes * constants.TOWER_DAMAGE_PER_MINUTE;
+    const baseDamage = constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE;
+
+    state.leftTower.damage = towerDamage;
+    state.rightTower.damage = towerDamage;
+    state.leftBase.damage = baseDamage;
+    state.rightBase.damage = baseDamage;
+  }
 
   function initEntities() {
     state.nextEntityId = 1;
@@ -382,6 +435,8 @@ function createSimulation(options = {}) {
     state.leftUpgrades = createUpgradeState();
     state.rightUpgrades = createUpgradeState();
     state.decisionLog = [];
+    rebuildSpawnSlots();
+    updateStructureDamageByTime();
   }
 
   function getUpgradesForSide(side) {
@@ -887,6 +942,7 @@ function createSimulation(options = {}) {
     state.rightBase.update();
     state.leftTower.update();
     state.rightTower.update();
+    updateStructureDamageByTime();
 
     // Clean up dead/off-lane peons and log death events before tick-summary
     const peonsBeforeCleanup = new Map(state.peons.map(p => [p.id, p]));
@@ -1125,6 +1181,7 @@ function createSimulation(options = {}) {
     state,
     tick,
     spawnUnits,
+    setSpawnLayout,
     buyUpgrade,
     getUpgradeSnapshot,
     initEntities,

@@ -14,7 +14,7 @@
         <button id="hudToggleBtn" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">Hide</button>
       </div>
       <p>Press V to toggle vision ranges.</p>
-      <div id="balanceConfig">Balance: D+4 H+25 S+1 | Grace S120s B300s | Spawn Y 50-550 (pad 0, slots 7)</div>
+      <div id="balanceConfig">Balance: D+4 H+25 S+1 | Grace S20s B45s | Spawn Y 50-550 (pad 0, slots 7)</div>
       <button id="downloadLogsBtn" type="button">Download Logs</button>
       <div id="devToolsHud">
         <label class="devToolRow" for="timeScaleRange">
@@ -41,6 +41,16 @@
             <option value="spawn-only">Spawn Only</option>
             <option value="balanced">Balanced</option>
           </select>
+        </label>
+        <label class="devToolRow" for="spawnPaddingRange">
+          <span>Spawn Pad</span>
+          <input id="spawnPaddingRange" type="range" min="0" max="120" step="1" value="0" />
+          <strong id="spawnPaddingValue">0</strong>
+        </label>
+        <label class="devToolRow" for="spawnSlotCountRange">
+          <span>Spawn Slots</span>
+          <input id="spawnSlotCountRange" type="range" min="2" max="15" step="1" value="7" />
+          <strong id="spawnSlotCountValue">7</strong>
         </label>
       </div>
       <div id="upgradeHud">

@@ -48,6 +48,28 @@ runTest('spawn slots cycle deterministically around tower lane', () => {
   assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to first slot');
 });
 
+runTest('spawn layout can be updated at runtime', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const beforeTop = simulation.layout.spawnSlots[0];
+  const beforeBottom = simulation.layout.spawnSlots[simulation.layout.spawnSlots.length - 1];
+
+  const result = simulation.setSpawnLayout({ padding: 30, slotCount: 9 });
+
+  assert(result.slotCount === 9, 'spawn slot count should update to requested value');
+  assert(simulation.layout.spawnSlots.length === 9, 'layout spawn slots should reflect updated slot count');
+  assert(simulation.layout.spawnSlots[0] > beforeTop, 'top spawn slot should move inward with positive padding');
+  assert(simulation.layout.spawnSlots[simulation.layout.spawnSlots.length - 1] < beforeBottom,
+    'bottom spawn slot should move inward with positive padding');
+
+  simulation.spawnUnits('left');
+  const spawnedYs = simulation.state.peons.map(peon => peon.y);
+  assert(spawnedYs.every(y => y >= simulation.layout.spawnSlots[0] && y <= simulation.layout.spawnSlots[simulation.layout.spawnSlots.length - 1]),
+    'spawned peons should stay within updated spawn slot range');
+});
+
 runTest('peons spawn with symmetric HP on both sides', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -634,6 +656,53 @@ runTest('tower and base record shot flashes and clear after ttl', () => {
 
   assert(simulation.state.leftTower.lastShotTarget === null, 'tower shot target should clear when flash expires');
   assert(simulation.state.leftBase.lastShotTarget === null, 'base shot target should clear when flash expires');
+});
+
+runTest('tower and base damage scale up over time and improve defensive hit strength', () => {
+  const simulation = createSimulation({
+    towerDamagePerMinute: 2,
+    baseDamagePerMinute: 1,
+  });
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const earlyTowerDamage = simulation.state.leftTower.damage;
+  const earlyBaseDamage = simulation.state.leftBase.damage;
+
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 180);
+
+  const lateTowerDamage = simulation.state.leftTower.damage;
+  const lateBaseDamage = simulation.state.leftBase.damage;
+  assert(lateTowerDamage > earlyTowerDamage, 'tower damage should increase with elapsed game time');
+  assert(lateBaseDamage > earlyBaseDamage, 'base damage should increase with elapsed game time');
+
+  // Compare practical impact: same target should lose more hp from a late-game shot.
+  const earlySim = createSimulation({
+    towerDamagePerMinute: 2,
+    baseDamagePerMinute: 1,
+  });
+  earlySim.clearPeons();
+  disableAutoSpawns(earlySim);
+  const earlyTarget = earlySim.addPeon('right', earlySim.state.leftTower.x + 20, earlySim.state.leftTower.y, { health: 200, maxHealth: 200 });
+  earlySim.state.leftTower.ticksSinceLastAttack = earlySim.state.leftTower.attackCooldown;
+  const earlyHpBefore = earlyTarget.health;
+  earlySim.tick();
+  const earlyHit = earlyHpBefore - earlyTarget.health;
+
+  const lateSim = createSimulation({
+    towerDamagePerMinute: 2,
+    baseDamagePerMinute: 1,
+  });
+  lateSim.clearPeons();
+  disableAutoSpawns(lateSim);
+  advanceTicks(lateSim, lateSim.constants.TICK_RATE * 300);
+  const lateTarget = lateSim.addPeon('right', lateSim.state.leftTower.x + 20, lateSim.state.leftTower.y, { health: 200, maxHealth: 200 });
+  lateSim.state.leftTower.ticksSinceLastAttack = lateSim.state.leftTower.attackCooldown;
+  const lateHpBefore = lateTarget.health;
+  lateSim.tick();
+  const lateHit = lateHpBefore - lateTarget.health;
+
+  assert(lateHit > earlyHit, `late-game tower hit should be stronger than early hit (early=${earlyHit}, late=${lateHit})`);
 });
 
 runTest('tick removes invalid or out-of-lane peons', () => {

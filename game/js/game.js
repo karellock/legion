@@ -3,8 +3,8 @@ const ctx = canvas.getContext('2d');
 const simulation = window.createSimulation({
   width: canvas.width,
   height: canvas.height,
-  structureDamageGraceSeconds: 120,
-  baseDamageGraceSeconds: 300,
+  structureDamageGraceSeconds: 20,
+  baseDamageGraceSeconds: 45,
 });
 const { constants, layout, state } = simulation;
 const GAME_VERSION = '0.0.1';
@@ -27,6 +27,10 @@ let timeScale = 1;
 let selectedEntityRef = null;
 let selectionInfoEl = null;
 let balanceConfigEl = null;
+let spawnPaddingRangeEl = null;
+let spawnPaddingValueEl = null;
+let spawnSlotCountRangeEl = null;
+let spawnSlotCountValueEl = null;
 
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
@@ -70,6 +74,18 @@ window.legionDebug = {
   },
   getBotStrategy() {
     return { ...botStrategy };
+  },
+  setSpawnLayout(padding, slotCount) {
+    const result = simulation.setSpawnLayout({ padding, slotCount });
+    updateBalanceConfigHud();
+    return result;
+  },
+  getSpawnLayout() {
+    return {
+      padding: constants.SPAWN_SLOT_PADDING,
+      slotCount: constants.SPAWN_SLOT_COUNT,
+      slots: layout.spawnSlots.slice(),
+    };
   },
   setDecisionLog(value) {
     simulation.setDecisionLogEnabled(Boolean(value));
@@ -250,16 +266,25 @@ function setupUpgradeControls() {
   upgradeSummaryEls.left = document.getElementById('leftUpgradeSummary');
   upgradeSummaryEls.right = document.getElementById('rightUpgradeSummary');
   balanceConfigEl = document.getElementById('balanceConfig');
-
-  if (balanceConfigEl) {
-    const structureGraceSeconds = Math.floor(constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
-    const baseGraceSeconds = Math.floor(constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
-    const spawnMinY = Math.round(layout.spawnSlots[0]);
-    const spawnMaxY = Math.round(layout.spawnSlots[layout.spawnSlots.length - 1]);
-    balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT})`;
-  }
+  updateBalanceConfigHud();
 
   updateUpgradeHud();
+}
+
+function updateBalanceConfigHud() {
+  if (!balanceConfigEl) {
+    return;
+  }
+
+  const structureGraceSeconds = Math.floor(constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
+  const baseGraceSeconds = Math.floor(constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
+  const spawnMinY = Math.round(layout.spawnSlots[0]);
+  const spawnMaxY = Math.round(layout.spawnSlots[layout.spawnSlots.length - 1]);
+  const elapsedMinutes = state.gameTime / (constants.TICK_RATE * 60);
+  const liveTowerDamage = (constants.TOWER_DAMAGE + elapsedMinutes * constants.TOWER_DAMAGE_PER_MINUTE).toFixed(1);
+  const liveBaseDamage = (constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE).toFixed(1);
+
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
 }
 
 function setupDevControls() {
@@ -267,6 +292,10 @@ function setupDevControls() {
   const timeScaleValue = document.getElementById('timeScaleValue');
   const leftBotSelect = document.getElementById('leftBotStrategy');
   const rightBotSelect = document.getElementById('rightBotStrategy');
+  spawnPaddingRangeEl = document.getElementById('spawnPaddingRange');
+  spawnPaddingValueEl = document.getElementById('spawnPaddingValue');
+  spawnSlotCountRangeEl = document.getElementById('spawnSlotCountRange');
+  spawnSlotCountValueEl = document.getElementById('spawnSlotCountValue');
   selectionInfoEl = document.getElementById('selectionInfo');
 
   if (timeScaleRange && timeScaleValue) {
@@ -296,6 +325,39 @@ function setupDevControls() {
       botStrategy.right = event.target.value;
     });
   }
+
+  const syncSpawnControls = () => {
+    if (spawnPaddingValueEl) {
+      spawnPaddingValueEl.textContent = String(constants.SPAWN_SLOT_PADDING);
+    }
+    if (spawnSlotCountValueEl) {
+      spawnSlotCountValueEl.textContent = String(constants.SPAWN_SLOT_COUNT);
+    }
+    if (spawnPaddingRangeEl) {
+      spawnPaddingRangeEl.value = String(constants.SPAWN_SLOT_PADDING);
+    }
+    if (spawnSlotCountRangeEl) {
+      spawnSlotCountRangeEl.value = String(constants.SPAWN_SLOT_COUNT);
+    }
+  };
+
+  const applySpawnLayoutFromControls = () => {
+    const nextPadding = spawnPaddingRangeEl ? Number(spawnPaddingRangeEl.value) : constants.SPAWN_SLOT_PADDING;
+    const nextSlotCount = spawnSlotCountRangeEl ? Number(spawnSlotCountRangeEl.value) : constants.SPAWN_SLOT_COUNT;
+    simulation.setSpawnLayout({ padding: nextPadding, slotCount: nextSlotCount });
+    syncSpawnControls();
+    updateBalanceConfigHud();
+  };
+
+  if (spawnPaddingRangeEl) {
+    spawnPaddingRangeEl.addEventListener('input', applySpawnLayoutFromControls);
+  }
+
+  if (spawnSlotCountRangeEl) {
+    spawnSlotCountRangeEl.addEventListener('input', applySpawnLayoutFromControls);
+  }
+
+  syncSpawnControls();
 
   canvas.addEventListener('click', event => {
     selectedEntityRef = pickEntityFromCanvasClick(event);
@@ -490,6 +552,7 @@ function gameLoop(currentTime) {
   }
 
   updateUpgradeHud();
+  updateBalanceConfigHud();
   updateSelectionHud();
 
   render();
