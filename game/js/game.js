@@ -64,11 +64,11 @@ window.legionDebug = {
   },
   setTimeScale(value) {
     const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (!Number.isFinite(parsed) || parsed < 0) {
       return timeScale;
     }
 
-    timeScale = Math.max(0.25, Math.min(4, parsed));
+    timeScale = Math.max(0, Math.min(4, parsed));
     return timeScale;
   },
   getTimeScale() {
@@ -437,13 +437,13 @@ function setupDevControls() {
 
   if (timeScaleRange && timeScaleValue) {
     const syncTimeScaleLabel = () => {
-      timeScaleValue.textContent = `${timeScale.toFixed(2)}x`;
+      timeScaleValue.textContent = timeScale === 0 ? 'Paused' : `${timeScale.toFixed(2)}x`;
     };
 
     timeScaleRange.addEventListener('input', event => {
       const nextScale = Number(event.target.value);
-      if (Number.isFinite(nextScale) && nextScale > 0) {
-        timeScale = nextScale;
+      if (Number.isFinite(nextScale) && nextScale >= 0) {
+        timeScale = Math.max(0, Math.min(4, nextScale));
       }
       syncTimeScaleLabel();
     });
@@ -767,6 +767,32 @@ function render() {
   drawSlashEffects();
 
   drawDebugText();
+  drawPauseBadge();
+}
+
+function drawPauseBadge() {
+  const pausedByTimeScale = timeScale === 0;
+  const pausedByMatchEnd = isMatchPaused;
+  if (!pausedByTimeScale && !pausedByMatchEnd) {
+    return;
+  }
+
+  const badgeText = pausedByMatchEnd ? 'PAUSED - MATCH END' : 'PAUSED - TIME SCALE 0x';
+  const badgeWidth = 260;
+  const badgeHeight = 34;
+  const badgeX = Math.round((canvas.width - badgeWidth) / 2);
+  const badgeY = 10;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(10, 12, 18, 0.78)';
+  fillRoundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 8, ctx.fillStyle);
+  strokeRoundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 8, 'rgba(255, 255, 255, 0.35)', 1.2);
+  ctx.fillStyle = 'rgba(245, 245, 245, 0.96)';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + 22);
+  ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 /**
