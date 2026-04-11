@@ -849,11 +849,19 @@ function createSimulation(options = {}) {
       return null;
     }
 
+    const getRemainingHealth = enemy => enemy.health - (plannedDamage.get(enemy) || 0);
+    const hasOtherViableTarget = currentEnemy => inRangeEnemies.some(enemy => enemy !== currentEnemy && getRemainingHealth(enemy) > 0);
+
     const preferredRemaining = preferredTarget
-      ? preferredTarget.health - (plannedDamage.get(preferredTarget) || 0)
+      ? getRemainingHealth(preferredTarget)
       : 0;
 
-    if (preferredTarget && inRangeEnemies.includes(preferredTarget) && preferredRemaining > 0) {
+    if (
+      preferredTarget
+      && inRangeEnemies.includes(preferredTarget)
+      && preferredRemaining > 0
+      && (preferredRemaining > peon.damage || !hasOtherViableTarget(preferredTarget))
+    ) {
       return preferredTarget;
     }
 
@@ -863,14 +871,16 @@ function createSimulation(options = {}) {
 
     // First priority: if we can finish an enemy now, take the lowest HP executable kill.
     const killCandidates = closeCandidates.filter(enemy => {
-      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
-      return remainingHealth > 0 && remainingHealth <= peon.damage;
+      const remainingHealth = getRemainingHealth(enemy);
+      return remainingHealth > 0
+        && remainingHealth <= peon.damage
+        && ((plannedDamage.get(enemy) || 0) === 0 || !hasOtherViableTarget(enemy));
     });
 
     if (killCandidates.length > 0) {
       killCandidates.sort((a, b) => {
-        const remainingA = a.health - (plannedDamage.get(a) || 0);
-        const remainingB = b.health - (plannedDamage.get(b) || 0);
+        const remainingA = getRemainingHealth(a);
+        const remainingB = getRemainingHealth(b);
         if (remainingA !== remainingB) {
           return remainingA - remainingB;
         }
@@ -887,8 +897,8 @@ function createSimulation(options = {}) {
     }
 
     closeCandidates.sort((a, b) => {
-      const remainingA = a.health - (plannedDamage.get(a) || 0);
-      const remainingB = b.health - (plannedDamage.get(b) || 0);
+      const remainingA = getRemainingHealth(a);
+      const remainingB = getRemainingHealth(b);
       if (remainingA !== remainingB) {
         return remainingA - remainingB;
       }
@@ -902,7 +912,7 @@ function createSimulation(options = {}) {
     });
 
     for (const enemy of closeCandidates) {
-      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
+      const remainingHealth = getRemainingHealth(enemy);
       if (remainingHealth > 0) {
         return enemy;
       }
