@@ -54,7 +54,7 @@ describe('Blue Peon Attack Logic', () => {
   // Create blue and red peons close together
   const bluePeon = sim.addPeon('left', 150, 300, { 
     health: 100, 
-    maxHealth: 105,
+    maxHealth: 100,
     x: 150,  // blue starting position
     ticksSinceLastAttack: 60  // ready to attack
   });

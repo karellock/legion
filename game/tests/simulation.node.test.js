@@ -108,6 +108,16 @@ runTest('peons spawn with symmetric HP on both sides', () => {
   assert(rightPeon.health === 100, 'right peon should start at 100 HP');
 });
 
+runTest('upgrade tuning uses smaller cheaper increments', () => {
+  const simulation = createSimulation();
+
+  assert(simulation.constants.UPGRADE_DAMAGE_PER_LEVEL === 1, 'damage upgrade should add 1 damage per level');
+  assert(simulation.constants.UPGRADE_HEALTH_PER_LEVEL === 5, 'health upgrade should add 5 hp per level');
+  assert(simulation.constants.UPGRADE_BASE_COST === 20, 'base upgrade cost should be reduced to 20 gold');
+  assert(simulation.getUpgradeSnapshot().left.nextDamageCost === 20, 'first damage upgrade should cost 20 gold');
+  assert(simulation.getUpgradeSnapshot().left.nextHealthCost === 20, 'first health upgrade should cost 20 gold');
+});
+
 runTest('peons prioritize enemy peons over towers', () => {
   const simulation = createSimulation();
   simulation.clearPeons();

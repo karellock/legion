@@ -54,7 +54,7 @@ runTest('spawn slots cycle deterministically around tower lane', () => {
   assert(ys[simulation.layout.spawnSlots.length] === simulation.layout.spawnSlots[0], 'spawn slots should wrap to first slot');
 });
 
-runTest('left side has +5 peon HP bonus', () => {
+runTest('peons spawn with symmetric baseline hp', () => {
   const simulation = window.createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
@@ -62,9 +62,25 @@ runTest('left side has +5 peon HP bonus', () => {
   const leftPeon = simulation.addPeon('left', 200, 200);
   const rightPeon = simulation.addPeon('right', 600, 200);
 
-  assert(leftPeon.health === 105, 'left peon should start at 105 HP');
+  assert(leftPeon.health === 100, 'left peon should start at 100 HP');
   assert(rightPeon.health === 100, 'right peon should start at 100 HP');
-  assert(leftPeon.maxHealth === rightPeon.maxHealth + 5, 'left peon max HP should be 5 higher');
+  assert(leftPeon.maxHealth === rightPeon.maxHealth, 'both sides should start with equal max hp');
+});
+
+runTest('upgrades use smaller +1 damage and +5 health steps', () => {
+  const simulation = window.createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  simulation.state.leftGold = 100;
+  const damageBuy = simulation.buyUpgrade('left', 'damage');
+  const healthBuy = simulation.buyUpgrade('left', 'health');
+  const upgradedPeon = simulation.addPeon('left', 200, 200);
+
+  assert(damageBuy.cost === 20, 'first damage upgrade should cost 20 gold');
+  assert(healthBuy.cost === 20, 'first health upgrade should cost 20 gold');
+  assert(upgradedPeon.damage === 11, 'one damage upgrade should add 1 damage');
+  assert(upgradedPeon.maxHealth === 105, 'one health upgrade should add 5 max hp');
 });
 
 runTest('peons prioritize enemy peons over towers', () => {
@@ -92,14 +108,20 @@ runTest('peons drop structure targets when an enemy peon appears', () => {
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   makeReady(leftPeon);
   simulation.tick();
-  assert(simulation.state.rightTower.health === 490, 'tower should take initial structure damage when lane is clear');
+  assert(
+    simulation.state.rightTower.health === simulation.state.rightTower.maxHealth - leftPeon.damage,
+    'tower should take initial structure damage when lane is clear'
+  );
 
   const rightPeon = simulation.addPeon('right', leftPeon.x + 10, leftPeon.y, { ticksSinceLastAttack: 0 });
   makeReady(leftPeon);
   simulation.tick();
 
   assert(leftPeon.target === rightPeon, 'left peon should retarget to the new enemy peon');
-  assert(simulation.state.rightTower.health === 490, 'tower should stop taking damage once an enemy peon appears');
+  assert(
+    simulation.state.rightTower.health === simulation.state.rightTower.maxHealth - leftPeon.damage,
+    'tower should stop taking damage once an enemy peon appears'
+  );
 });
 
 runTest('after crossing midline peons hunt enemies on attacker side first', () => {
