@@ -26,6 +26,7 @@ const botStrategy = {
 let timeScale = 1;
 let selectedEntityRef = null;
 let selectionInfoEl = null;
+let balanceConfigEl = null;
 
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
@@ -248,6 +249,14 @@ function setupUpgradeControls() {
 
   upgradeSummaryEls.left = document.getElementById('leftUpgradeSummary');
   upgradeSummaryEls.right = document.getElementById('rightUpgradeSummary');
+  balanceConfigEl = document.getElementById('balanceConfig');
+
+  if (balanceConfigEl) {
+    const structureGraceSeconds = Math.floor(constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
+    const baseGraceSeconds = Math.floor(constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
+    balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s`;
+  }
+
   updateUpgradeHud();
 }
 

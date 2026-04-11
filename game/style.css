@@ -91,6 +91,13 @@ body {
   font-size: 12px;
 }
 
+#balanceConfig {
+  margin: 2px 0 8px;
+  color: #9fb4d6;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 #downloadLogsBtn {
   width: 100%;
   margin-top: 2px;
