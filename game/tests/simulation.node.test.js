@@ -141,15 +141,16 @@ runTest('peons retarget from structure to enemy peon', () => {
 
   const leftPeon = simulation.addPeon('left', simulation.state.rightTower.x - 12, simulation.state.rightTower.y);
   makeReady(leftPeon);
+  const expectedTowerAfterFirstHit = simulation.state.rightTower.maxHealth - leftPeon.damage;
   simulation.tick();
-  assert(simulation.state.rightTower.health === 490, 'tower should take structure hit when lane is empty');
+  assert(simulation.state.rightTower.health === expectedTowerAfterFirstHit, 'tower should take structure hit when lane is empty');
 
   const rightPeon = simulation.addPeon('right', leftPeon.x + 10, leftPeon.y);
   makeReady(leftPeon);
   simulation.tick();
 
   assert(leftPeon.target === rightPeon, 'left peon should switch to enemy peon target');
-  assert(simulation.state.rightTower.health === 490, 'tower damage should stop once enemy peon appears');
+  assert(simulation.state.rightTower.health === expectedTowerAfterFirstHit, 'tower damage should stop once enemy peon appears');
 });
 
 runTest('crossed-midline peon drops structure target for visible enemy before melee range', () => {
@@ -366,15 +367,20 @@ runTest('upgrade costs double each level and spend gold deterministically', () =
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
-  simulation.state.leftGold = 200;
+  const firstExpected = Math.round(
+    simulation.constants.UPGRADE_BASE_COST * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
+  );
+  const secondExpected = Math.round(firstExpected * 2);
+
+  simulation.state.leftGold = firstExpected + secondExpected + 50;
   const first = simulation.buyUpgrade('left', 'damage');
   const second = simulation.buyUpgrade('left', 'damage');
 
   assert(first.ok === true, 'first upgrade purchase should succeed');
   assert(second.ok === true, 'second upgrade purchase should succeed');
-  assert(first.cost === 50, 'first upgrade cost should be base cost 50');
-  assert(second.cost === 100, 'second upgrade cost should double to 100');
-  assert(simulation.state.leftGold === 50, 'gold should be reduced by cumulative costs (150 total)');
+  assert(first.cost === firstExpected, 'first damage upgrade cost should include configured damage multiplier');
+  assert(second.cost === secondExpected, 'second upgrade cost should double from first level cost');
+  assert(simulation.state.leftGold === 50, 'gold should be reduced by cumulative costs');
   assert(simulation.state.leftUpgrades.damageLevel === 2, 'damage upgrade level should increment per purchase');
 });
 
@@ -383,15 +389,72 @@ runTest('health and damage upgrades affect newly spawned peons', () => {
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
-  simulation.state.leftGold = 200;
+  simulation.state.leftGold = 300;
   simulation.buyUpgrade('left', 'health');
   simulation.buyUpgrade('left', 'damage');
 
   const upgradedPeon = simulation.addPeon('left', 200, 200);
 
-  assert(upgradedPeon.maxHealth === 150, 'left peon max health should include +50 from one health upgrade');
-  assert(upgradedPeon.health === 150, 'left peon current health should start at upgraded max health');
-  assert(upgradedPeon.damage === 15, 'left peon damage should include +5 from one damage upgrade');
+  const expectedHealth = simulation.constants.PEON_HP + simulation.constants.UPGRADE_HEALTH_PER_LEVEL;
+  const expectedDamage = simulation.constants.PEON_DAMAGE + simulation.constants.UPGRADE_DAMAGE_PER_LEVEL;
+
+  assert(upgradedPeon.maxHealth === expectedHealth, 'left peon max health should include one health upgrade');
+  assert(upgradedPeon.health === expectedHealth, 'left peon current health should start at upgraded max health');
+  assert(upgradedPeon.damage === expectedDamage, 'left peon damage should include one damage upgrade');
+});
+
+runTest('single early health vs damage upgrade causes no structure damage in first 2 minutes', () => {
+  const simulation = createSimulation();
+  simulation.initEntities();
+
+  // Fund only one early upgrade for each side to model opening choices.
+  simulation.state.leftGold = 200;
+  simulation.state.rightGold = 200;
+  const leftBuy = simulation.buyUpgrade('left', 'health');
+  const rightBuy = simulation.buyUpgrade('right', 'damage');
+
+  assert(leftBuy.ok === true, 'left should be able to buy one opening health upgrade');
+  assert(rightBuy.ok === true, 'right should be able to buy one opening damage upgrade');
+
+  const initialLeftTowerHp = simulation.state.leftTower.health;
+  const initialRightTowerHp = simulation.state.rightTower.health;
+  const initialLeftBaseHp = simulation.state.leftBase.health;
+  const initialRightBaseHp = simulation.state.rightBase.health;
+
+  // Run for 2 minutes of simulated time.
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 120);
+
+  assert(simulation.state.leftTower.health === initialLeftTowerHp, 'left tower should take no damage in first 2 minutes for hp-vs-dmg opening');
+  assert(simulation.state.rightTower.health === initialRightTowerHp, 'right tower should take no damage in first 2 minutes for hp-vs-dmg opening');
+  assert(simulation.state.leftBase.health === initialLeftBaseHp, 'left base should take no damage in first 2 minutes for hp-vs-dmg opening');
+  assert(simulation.state.rightBase.health === initialRightBaseHp, 'right base should take no damage in first 2 minutes for hp-vs-dmg opening');
+});
+
+runTest('single early health vs damage upgrade reaches towers by 5 minutes but not bases', () => {
+  const simulation = createSimulation();
+  simulation.initEntities();
+
+  simulation.state.leftGold = 200;
+  simulation.state.rightGold = 200;
+  const leftBuy = simulation.buyUpgrade('left', 'health');
+  const rightBuy = simulation.buyUpgrade('right', 'damage');
+
+  assert(leftBuy.ok === true, 'left should be able to buy one opening health upgrade');
+  assert(rightBuy.ok === true, 'right should be able to buy one opening damage upgrade');
+
+  const initialLeftTowerHp = simulation.state.leftTower.health;
+  const initialRightTowerHp = simulation.state.rightTower.health;
+  const initialLeftBaseHp = simulation.state.leftBase.health;
+  const initialRightBaseHp = simulation.state.rightBase.health;
+
+  // Run for 5 minutes of simulated time.
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 300);
+
+  const someTowerDamaged = simulation.state.leftTower.health < initialLeftTowerHp
+    || simulation.state.rightTower.health < initialRightTowerHp;
+  assert(someTowerDamaged, 'at least one tower should have taken damage by 5 minutes in hp-vs-dmg opening');
+  assert(simulation.state.leftBase.health === initialLeftBaseHp, 'left base should still be untouched at 5 minutes in hp-vs-dmg opening');
+  assert(simulation.state.rightBase.health === initialRightBaseHp, 'right base should still be untouched at 5 minutes in hp-vs-dmg opening');
 });
 
 runTest('spawn upgrade increases spawned wave size for that side only', () => {

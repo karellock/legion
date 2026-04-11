@@ -17,23 +17,30 @@ function createSimulation(options = {}) {
     PEON_ATTACK_RANGE: 16,
     PEON_VISION_RANGE: 90,
     TOWER_ATTACK_RANGE: 120,
-    TOWER_ATTACK_RATE: 0.4,
-    TOWER_DAMAGE: 20,
+    TOWER_ATTACK_RATE: 0.5,
+    TOWER_DAMAGE: 26,
     TOWER_VISION_RANGE: 150,
+    TOWER_HP: 700,
     BASE_ATTACK_RANGE: 160,
-    BASE_ATTACK_RATE: 0.33,
-    BASE_DAMAGE: 10,
+    BASE_ATTACK_RATE: 0.4,
+    BASE_DAMAGE: 14,
     BASE_VISION_RANGE: 200,
     KILL_BOUNTY_GOLD: 10,
     SHRINE_GOLD_PER_SECOND: 2,
     UPGRADE_BASE_COST: 50,
-    UPGRADE_DAMAGE_PER_LEVEL: 5,
-    UPGRADE_HEALTH_PER_LEVEL: 50,
+    UPGRADE_DAMAGE_PER_LEVEL: 3,
+    UPGRADE_HEALTH_PER_LEVEL: 35,
     UPGRADE_SPAWN_COUNT_PER_LEVEL: 1,
+    UPGRADE_DAMAGE_COST_MULTIPLIER: 1.35,
+    UPGRADE_HEALTH_COST_MULTIPLIER: 1,
+    UPGRADE_SPAWN_COST_MULTIPLIER: 1,
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
-    SPAWN_SLOT_PADDING: 40,
+    SPAWN_SLOT_PADDING: 0,
     SPAWN_SLOT_COUNT: 7,
+    HIT_FLASH_TOTAL_TICKS: 18,
+    HIT_FLASH_HOLD_TICKS: 3,
+    SLASH_EFFECT_TTL: 10,
   };
 
   class Peon {
@@ -53,10 +60,16 @@ function createSimulation(options = {}) {
       this.visionRange = constants.PEON_VISION_RANGE;
       this.damage = stats.damage ?? constants.PEON_DAMAGE;
       this.target = null;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
       this.ticksSinceLastAttack++;
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     move() {
@@ -86,6 +99,7 @@ function createSimulation(options = {}) {
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isAlive() {
@@ -137,6 +151,9 @@ function createSimulation(options = {}) {
       this.lastShotX = null;
       this.lastShotY = null;
       this.shotFlashTicks = 0;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
@@ -149,10 +166,15 @@ function createSimulation(options = {}) {
           this.lastShotY = null;
         }
       }
+
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isDestroyed() {
@@ -215,6 +237,9 @@ function createSimulation(options = {}) {
       this.lastShotX = null;
       this.lastShotY = null;
       this.shotFlashTicks = 0;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
@@ -227,10 +252,15 @@ function createSimulation(options = {}) {
           this.lastShotY = null;
         }
       }
+
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isDestroyed() {
@@ -311,13 +341,14 @@ function createSimulation(options = {}) {
   }
 
   function createSpawnSlots() {
-    const laneY = height / 2;
-    const half = Math.floor(constants.SPAWN_SLOT_COUNT / 2);
-    const step = 12;
+    const usableTop = constants.LANE_TOP + constants.SPAWN_SLOT_PADDING;
+    const usableBottom = constants.LANE_BOTTOM - constants.SPAWN_SLOT_PADDING;
+    const slotCount = Math.max(2, constants.SPAWN_SLOT_COUNT);
+    const step = (usableBottom - usableTop) / (slotCount - 1);
     const slots = [];
 
-    for (let index = 0; index < constants.SPAWN_SLOT_COUNT; index++) {
-      slots.push(laneY + (index - half) * step);
+    for (let index = 0; index < slotCount; index++) {
+      slots.push(usableTop + index * step);
     }
 
     return slots;
@@ -329,8 +360,8 @@ function createSimulation(options = {}) {
     state.nextEntityId = 1;
     state.leftBase = new Base('left', 2000, 2000);
     state.rightBase = new Base('right', 2000, 2000);
-    state.leftTower = new Tower('left', 500, 500);
-    state.rightTower = new Tower('right', 500, 500);
+    state.leftTower = new Tower('left', constants.TOWER_HP, constants.TOWER_HP);
+    state.rightTower = new Tower('right', constants.TOWER_HP, constants.TOWER_HP);
     state.peons = [];
     state.leftSpawnTimer = 0;
     state.rightSpawnTimer = 0;
@@ -378,8 +409,15 @@ function createSimulation(options = {}) {
     return true;
   }
 
-  function getUpgradeCost(level) {
-    return constants.UPGRADE_BASE_COST * (2 ** level);
+  function getUpgradeCost(level, type = 'generic') {
+    const multiplierByType = {
+      damage: constants.UPGRADE_DAMAGE_COST_MULTIPLIER,
+      health: constants.UPGRADE_HEALTH_COST_MULTIPLIER,
+      spawn: constants.UPGRADE_SPAWN_COST_MULTIPLIER,
+    };
+
+    const multiplier = multiplierByType[type] ?? 1;
+    return Math.round(constants.UPGRADE_BASE_COST * multiplier * (2 ** level));
   }
 
   function getPeonStatsForSide(side) {
@@ -404,17 +442,17 @@ function createSimulation(options = {}) {
         damageLevel: left.damageLevel,
         healthLevel: left.healthLevel,
         spawnLevel: left.spawnLevel,
-        nextDamageCost: getUpgradeCost(left.damageLevel),
-        nextHealthCost: getUpgradeCost(left.healthLevel),
-        nextSpawnCost: getUpgradeCost(left.spawnLevel),
+        nextDamageCost: getUpgradeCost(left.damageLevel, 'damage'),
+        nextHealthCost: getUpgradeCost(left.healthLevel, 'health'),
+        nextSpawnCost: getUpgradeCost(left.spawnLevel, 'spawn'),
       },
       right: {
         damageLevel: right.damageLevel,
         healthLevel: right.healthLevel,
         spawnLevel: right.spawnLevel,
-        nextDamageCost: getUpgradeCost(right.damageLevel),
-        nextHealthCost: getUpgradeCost(right.healthLevel),
-        nextSpawnCost: getUpgradeCost(right.spawnLevel),
+        nextDamageCost: getUpgradeCost(right.damageLevel, 'damage'),
+        nextHealthCost: getUpgradeCost(right.healthLevel, 'health'),
+        nextSpawnCost: getUpgradeCost(right.spawnLevel, 'spawn'),
       },
     };
   }
@@ -436,7 +474,7 @@ function createSimulation(options = {}) {
     }
 
     const currentLevel = upgrades[levelKey];
-    const cost = getUpgradeCost(currentLevel);
+    const cost = getUpgradeCost(currentLevel, type);
     if (!spendGold(side, cost)) {
       return { ok: false, reason: 'insufficient-gold', cost, currentGold: getGoldForSide(side) };
     }
@@ -551,17 +589,14 @@ function createSimulation(options = {}) {
   }
 
   function addSlashEffect(attacker, target) {
-    const midX = (attacker.x + target.x) * 0.5;
-    const midY = (attacker.y + target.y) * 0.5;
-    const angle = Math.atan2(target.y - attacker.y, target.x - attacker.x);
-
     state.slashEffects.push({
-      x: midX,
-      y: midY,
-      angle,
+      fromX: attacker.x,
+      fromY: attacker.y,
+      toX: target.x,
+      toY: target.y,
       side: attacker.side,
-      ttl: 10,
-      maxTtl: 10,
+      ttl: constants.SLASH_EFFECT_TTL,
+      maxTtl: constants.SLASH_EFFECT_TTL,
     });
   }
 
