@@ -368,9 +368,15 @@ runTest('upgrade costs double each level and spend gold deterministically', () =
   disableAutoSpawns(simulation);
 
   const firstExpected = Math.round(
-    simulation.constants.UPGRADE_BASE_COST * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
+    simulation.constants.UPGRADE_BASE_COST
+      * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
+      * (2 ** 0)
   );
-  const secondExpected = Math.round(firstExpected * 2);
+  const secondExpected = Math.round(
+    simulation.constants.UPGRADE_BASE_COST
+      * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
+      * (2 ** 1)
+  );
 
   simulation.state.leftGold = firstExpected + secondExpected + 50;
   const first = simulation.buyUpgrade('left', 'damage');
@@ -404,7 +410,10 @@ runTest('health and damage upgrades affect newly spawned peons', () => {
 });
 
 runTest('single early health vs damage upgrade causes no structure damage in first 2 minutes', () => {
-  const simulation = createSimulation();
+  const simulation = createSimulation({
+    structureDamageGraceSeconds: 120,
+    baseDamageGraceSeconds: 300,
+  });
   simulation.initEntities();
 
   // Fund only one early upgrade for each side to model opening choices.
@@ -431,7 +440,10 @@ runTest('single early health vs damage upgrade causes no structure damage in fir
 });
 
 runTest('single early health vs damage upgrade reaches towers by 5 minutes but not bases', () => {
-  const simulation = createSimulation();
+  const simulation = createSimulation({
+    structureDamageGraceSeconds: 120,
+    baseDamageGraceSeconds: 300,
+  });
   simulation.initEntities();
 
   simulation.state.leftGold = 200;
@@ -455,6 +467,62 @@ runTest('single early health vs damage upgrade reaches towers by 5 minutes but n
   assert(someTowerDamaged, 'at least one tower should have taken damage by 5 minutes in hp-vs-dmg opening');
   assert(simulation.state.leftBase.health === initialLeftBaseHp, 'left base should still be untouched at 5 minutes in hp-vs-dmg opening');
   assert(simulation.state.rightBase.health === initialRightBaseHp, 'right base should still be untouched at 5 minutes in hp-vs-dmg opening');
+});
+
+runTest('hp-vs-dmg scenario stays bounded with 30s checkpoints and no base damage by 5 minutes', () => {
+  const simulation = createSimulation({
+    structureDamageGraceSeconds: 120,
+    baseDamageGraceSeconds: 300,
+  });
+  simulation.initEntities();
+  simulation.setDecisionLogEnabled(true);
+
+  simulation.state.leftGold = 200;
+  simulation.state.rightGold = 200;
+  const leftBuy = simulation.buyUpgrade('left', 'health');
+  const rightBuy = simulation.buyUpgrade('right', 'damage');
+
+  assert(leftBuy.ok === true, 'left opening health upgrade purchase should succeed');
+  assert(rightBuy.ok === true, 'right opening damage upgrade purchase should succeed');
+
+  const checkpoints = [];
+  const checkpointStep = simulation.constants.TICK_RATE * 30;
+  const totalTicks = simulation.constants.TICK_RATE * 300;
+
+  for (let tick = checkpointStep; tick <= totalTicks; tick += checkpointStep) {
+    advanceTicks(simulation, checkpointStep);
+    checkpoints.push({
+      second: tick / simulation.constants.TICK_RATE,
+      leftTower: simulation.state.leftTower.health,
+      rightTower: simulation.state.rightTower.health,
+      leftBase: simulation.state.leftBase.health,
+      rightBase: simulation.state.rightBase.health,
+      leftHpLost: simulation.state.leftHpLost,
+      rightHpLost: simulation.state.rightHpLost,
+    });
+  }
+
+  const at120 = checkpoints.find(row => row.second === 120);
+  assert(Boolean(at120), 'expected a 120-second checkpoint in hp-vs-dmg scenario');
+  assert(at120.leftTower === simulation.state.leftTower.maxHealth,
+    `left tower should be untouched at 120s (actual: ${at120.leftTower})`);
+  assert(at120.rightTower === simulation.state.rightTower.maxHealth,
+    `right tower should be untouched at 120s (actual: ${at120.rightTower})`);
+
+  const at300 = checkpoints.find(row => row.second === 300);
+  assert(Boolean(at300), 'expected a 300-second checkpoint in hp-vs-dmg scenario');
+  const someTowerDamaged = at300.leftTower < simulation.state.leftTower.maxHealth
+    || at300.rightTower < simulation.state.rightTower.maxHealth;
+  assert(someTowerDamaged,
+    `expected at least one damaged tower at 300s (L:${at300.leftTower}, R:${at300.rightTower})`);
+  assert(at300.leftBase === simulation.state.leftBase.maxHealth,
+    `left base should be untouched at 300s (actual: ${at300.leftBase})`);
+  assert(at300.rightBase === simulation.state.rightBase.maxHealth,
+    `right base should be untouched at 300s (actual: ${at300.rightBase})`);
+
+  const damageSideLead = at300.leftHpLost - at300.rightHpLost;
+  assert(damageSideLead >= 0,
+    `damage-upgraded side should not underperform by 300s (leftHpLost=${at300.leftHpLost}, rightHpLost=${at300.rightHpLost})`);
 });
 
 runTest('spawn upgrade increases spawned wave size for that side only', () => {

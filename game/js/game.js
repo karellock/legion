@@ -1,6 +1,11 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const simulation = window.createSimulation({ width: canvas.width, height: canvas.height });
+const simulation = window.createSimulation({
+  width: canvas.width,
+  height: canvas.height,
+  structureDamageGraceSeconds: 120,
+  baseDamageGraceSeconds: 300,
+});
 const { constants, layout, state } = simulation;
 const GAME_VERSION = '0.0.1';
 const BASE_CANVAS_WIDTH = canvas.width;

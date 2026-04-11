@@ -28,12 +28,14 @@ function createSimulation(options = {}) {
     KILL_BOUNTY_GOLD: 10,
     SHRINE_GOLD_PER_SECOND: 2,
     UPGRADE_BASE_COST: 50,
-    UPGRADE_DAMAGE_PER_LEVEL: 3,
-    UPGRADE_HEALTH_PER_LEVEL: 35,
+    UPGRADE_DAMAGE_PER_LEVEL: 4,
+    UPGRADE_HEALTH_PER_LEVEL: 25,
     UPGRADE_SPAWN_COUNT_PER_LEVEL: 1,
-    UPGRADE_DAMAGE_COST_MULTIPLIER: 1.35,
+    UPGRADE_DAMAGE_COST_MULTIPLIER: 1.2,
     UPGRADE_HEALTH_COST_MULTIPLIER: 1,
     UPGRADE_SPAWN_COST_MULTIPLIER: 1,
+    STRUCTURE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.structureDamageGraceSeconds ?? 0) * 60)),
+    BASE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.baseDamageGraceSeconds ?? 0) * 60)),
     SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
     SPAWN_COUNT: options.spawnCount ?? 1,
     SPAWN_SLOT_PADDING: 0,
@@ -840,8 +842,13 @@ function createSimulation(options = {}) {
     }
 
     for (const [target, damage] of damageByTarget.entries()) {
+      const targetKind = entityType(target);
+      const structureProtected = targetKind === 'tower' && state.gameTime < constants.STRUCTURE_DAMAGE_GRACE_TICKS;
+      const baseProtected = targetKind === 'base' && state.gameTime < constants.BASE_DAMAGE_GRACE_TICKS;
+      const effectiveDamage = structureProtected || baseProtected ? 0 : damage;
+
       const healthBefore = target.health;
-      target.takeDamage(damage);
+      target.takeDamage(effectiveDamage);
       const healthLost = Math.max(0, healthBefore - target.health);
 
       if (target.side === 'left') {
