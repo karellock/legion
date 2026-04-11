@@ -254,7 +254,9 @@ function setupUpgradeControls() {
   if (balanceConfigEl) {
     const structureGraceSeconds = Math.floor(constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
     const baseGraceSeconds = Math.floor(constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE);
-    balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s`;
+    const spawnMinY = Math.round(layout.spawnSlots[0]);
+    const spawnMaxY = Math.round(layout.spawnSlots[layout.spawnSlots.length - 1]);
+    balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT})`;
   }
 
   updateUpgradeHud();
