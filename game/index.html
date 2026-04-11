@@ -15,7 +15,19 @@
       </div>
       <p>Press V to toggle vision ranges.</p>
       <div id="balanceConfig">Balance: D+4 H+25 S+1 | Grace S20s B45s | Spawn Y 50-550 (pad 0, slots 7)</div>
+      <div id="matchControls">
+        <button id="restartMatchBtn" type="button">Restart Match</button>
+      </div>
       <button id="downloadLogsBtn" type="button">Download Logs</button>
+      <section id="matchResultPanel" hidden>
+        <h2 id="matchResultTitle">Match Paused</h2>
+        <div id="matchResultSummary">A base was destroyed.</div>
+        <div id="matchResultStats"></div>
+        <div class="matchResultActions">
+          <button id="continueAfterEndBtn" type="button">Continue</button>
+          <button id="restartAfterEndBtn" type="button">Restart</button>
+        </div>
+      </section>
       <div id="devToolsHud">
         <label class="devToolRow" for="timeScaleRange">
           <span>Time Scale</span>

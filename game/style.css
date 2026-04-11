@@ -115,6 +115,77 @@ body {
   background: linear-gradient(180deg, #333847 0%, #21252d 100%);
 }
 
+#matchControls {
+  margin: 8px 0 6px;
+}
+
+#restartMatchBtn {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #365139 0%, #233626 100%);
+  color: #f5f5f5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#restartMatchBtn:hover {
+  background: linear-gradient(180deg, #416346 0%, #2b432f 100%);
+}
+
+#matchResultPanel {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(26, 28, 36, 0.96) 0%, rgba(18, 20, 26, 0.96) 100%);
+}
+
+#matchResultPanel h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+#matchResultSummary {
+  font-size: 11px;
+  color: #d9e0ef;
+}
+
+#matchResultStats {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #b7c4df;
+  line-height: 1.35;
+}
+
+#matchResultStats strong {
+  color: #f5f5f5;
+}
+
+.matchResultActions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.matchResultActions button {
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #f5f5f5;
+  background: linear-gradient(180deg, #2a2f39 0%, #1d2129 100%);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.matchResultActions button:hover {
+  background: linear-gradient(180deg, #343a47 0%, #222730 100%);
+}
+
 #devToolsHud {
   margin-top: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
