@@ -212,14 +212,14 @@ function setupHudCollapseControls() {
 
 function formatUpgradeButtonLabel(type, cost) {
   if (type === 'damage') {
-    return `Damage +5 (${cost}g)`;
+    return `Damage +${constants.UPGRADE_DAMAGE_PER_LEVEL} (${cost}g)`;
   }
 
   if (type === 'health') {
-    return `Health +50 (${cost}g)`;
+    return `Health +${constants.UPGRADE_HEALTH_PER_LEVEL} (${cost}g)`;
   }
 
-  return `Spawn +1 (${cost}g)`;
+  return `Spawn +${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} (${cost}g)`;
 }
 
 function setupUpgradeControls() {
