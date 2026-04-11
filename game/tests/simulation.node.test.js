@@ -70,6 +70,32 @@ runTest('spawn layout can be updated at runtime', () => {
     'spawned peons should stay within updated spawn slot range');
 });
 
+runTest('structure damage scaling can be updated at runtime', () => {
+  const simulation = createSimulation({
+    towerDamagePerMinute: 1.2,
+    baseDamagePerMinute: 0.6,
+  });
+
+  const beforeTowerPerMinute = simulation.constants.TOWER_DAMAGE_PER_MINUTE;
+  const beforeBasePerMinute = simulation.constants.BASE_DAMAGE_PER_MINUTE;
+
+  const result = simulation.setStructureDamageScaling({
+    towerDamagePerMinute: 3.5,
+    baseDamagePerMinute: 2.1,
+  });
+
+  assert(beforeTowerPerMinute !== result.towerDamagePerMinute, 'tower per-minute scaling should change');
+  assert(beforeBasePerMinute !== result.baseDamagePerMinute, 'base per-minute scaling should change');
+  assert(simulation.constants.TOWER_DAMAGE_PER_MINUTE === 3.5, 'tower per-minute scaling should update in constants');
+  assert(simulation.constants.BASE_DAMAGE_PER_MINUTE === 2.1, 'base per-minute scaling should update in constants');
+
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 120);
+  assert(simulation.state.leftTower.damage > simulation.constants.TOWER_DAMAGE,
+    'tower live damage should scale up over time after runtime update');
+  assert(simulation.state.leftBase.damage > simulation.constants.BASE_DAMAGE,
+    'base live damage should scale up over time after runtime update');
+});
+
 runTest('peons spawn with symmetric HP on both sides', () => {
   const simulation = createSimulation();
   simulation.clearPeons();

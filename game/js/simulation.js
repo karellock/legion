@@ -396,6 +396,26 @@ function createSimulation(options = {}) {
     };
   }
 
+  function setStructureDamageScaling(config = {}) {
+    const nextTowerPerMinute = Number(config.towerDamagePerMinute);
+    const nextBasePerMinute = Number(config.baseDamagePerMinute);
+
+    if (Number.isFinite(nextTowerPerMinute)) {
+      constants.TOWER_DAMAGE_PER_MINUTE = Math.max(0, nextTowerPerMinute);
+    }
+
+    if (Number.isFinite(nextBasePerMinute)) {
+      constants.BASE_DAMAGE_PER_MINUTE = Math.max(0, nextBasePerMinute);
+    }
+
+    updateStructureDamageByTime();
+
+    return {
+      towerDamagePerMinute: constants.TOWER_DAMAGE_PER_MINUTE,
+      baseDamagePerMinute: constants.BASE_DAMAGE_PER_MINUTE,
+    };
+  }
+
   function currentElapsedMinutes() {
     return state.gameTime / (constants.TICK_RATE * 60);
   }
@@ -1182,6 +1202,7 @@ function createSimulation(options = {}) {
     tick,
     spawnUnits,
     setSpawnLayout,
+    setStructureDamageScaling,
     buyUpgrade,
     getUpgradeSnapshot,
     initEntities,

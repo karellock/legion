@@ -31,6 +31,10 @@ let spawnPaddingRangeEl = null;
 let spawnPaddingValueEl = null;
 let spawnSlotCountRangeEl = null;
 let spawnSlotCountValueEl = null;
+let towerDamagePerMinuteRangeEl = null;
+let towerDamagePerMinuteValueEl = null;
+let baseDamagePerMinuteRangeEl = null;
+let baseDamagePerMinuteValueEl = null;
 
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
@@ -77,6 +81,14 @@ window.legionDebug = {
   },
   setSpawnLayout(padding, slotCount) {
     const result = simulation.setSpawnLayout({ padding, slotCount });
+    updateBalanceConfigHud();
+    return result;
+  },
+  setStructureDamageScaling(towerDamagePerMinute, baseDamagePerMinute) {
+    const result = simulation.setStructureDamageScaling({
+      towerDamagePerMinute,
+      baseDamagePerMinute,
+    });
     updateBalanceConfigHud();
     return result;
   },
@@ -283,8 +295,10 @@ function updateBalanceConfigHud() {
   const elapsedMinutes = state.gameTime / (constants.TICK_RATE * 60);
   const liveTowerDamage = (constants.TOWER_DAMAGE + elapsedMinutes * constants.TOWER_DAMAGE_PER_MINUTE).toFixed(1);
   const liveBaseDamage = (constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE).toFixed(1);
+  const towerRamp = constants.TOWER_DAMAGE_PER_MINUTE.toFixed(1);
+  const baseRamp = constants.BASE_DAMAGE_PER_MINUTE.toFixed(1);
 
-  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (pad ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
 }
 
 function setupDevControls() {
@@ -296,6 +310,10 @@ function setupDevControls() {
   spawnPaddingValueEl = document.getElementById('spawnPaddingValue');
   spawnSlotCountRangeEl = document.getElementById('spawnSlotCountRange');
   spawnSlotCountValueEl = document.getElementById('spawnSlotCountValue');
+  towerDamagePerMinuteRangeEl = document.getElementById('towerDamagePerMinuteRange');
+  towerDamagePerMinuteValueEl = document.getElementById('towerDamagePerMinuteValue');
+  baseDamagePerMinuteRangeEl = document.getElementById('baseDamagePerMinuteRange');
+  baseDamagePerMinuteValueEl = document.getElementById('baseDamagePerMinuteValue');
   selectionInfoEl = document.getElementById('selectionInfo');
 
   if (timeScaleRange && timeScaleValue) {
@@ -349,6 +367,38 @@ function setupDevControls() {
     updateBalanceConfigHud();
   };
 
+  const syncStructureDamageControls = () => {
+    if (towerDamagePerMinuteValueEl) {
+      towerDamagePerMinuteValueEl.textContent = constants.TOWER_DAMAGE_PER_MINUTE.toFixed(1);
+    }
+    if (baseDamagePerMinuteValueEl) {
+      baseDamagePerMinuteValueEl.textContent = constants.BASE_DAMAGE_PER_MINUTE.toFixed(1);
+    }
+    if (towerDamagePerMinuteRangeEl) {
+      towerDamagePerMinuteRangeEl.value = String(constants.TOWER_DAMAGE_PER_MINUTE);
+    }
+    if (baseDamagePerMinuteRangeEl) {
+      baseDamagePerMinuteRangeEl.value = String(constants.BASE_DAMAGE_PER_MINUTE);
+    }
+  };
+
+  const applyStructureDamageFromControls = () => {
+    const nextTowerPerMinute = towerDamagePerMinuteRangeEl
+      ? Number(towerDamagePerMinuteRangeEl.value)
+      : constants.TOWER_DAMAGE_PER_MINUTE;
+    const nextBasePerMinute = baseDamagePerMinuteRangeEl
+      ? Number(baseDamagePerMinuteRangeEl.value)
+      : constants.BASE_DAMAGE_PER_MINUTE;
+
+    simulation.setStructureDamageScaling({
+      towerDamagePerMinute: nextTowerPerMinute,
+      baseDamagePerMinute: nextBasePerMinute,
+    });
+
+    syncStructureDamageControls();
+    updateBalanceConfigHud();
+  };
+
   if (spawnPaddingRangeEl) {
     spawnPaddingRangeEl.addEventListener('input', applySpawnLayoutFromControls);
   }
@@ -357,7 +407,16 @@ function setupDevControls() {
     spawnSlotCountRangeEl.addEventListener('input', applySpawnLayoutFromControls);
   }
 
+  if (towerDamagePerMinuteRangeEl) {
+    towerDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
+  }
+
+  if (baseDamagePerMinuteRangeEl) {
+    baseDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
+  }
+
   syncSpawnControls();
+  syncStructureDamageControls();
 
   canvas.addEventListener('click', event => {
     selectedEntityRef = pickEntityFromCanvasClick(event);
