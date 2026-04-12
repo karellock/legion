@@ -1,6 +1,7 @@
 const { spawnSync } = require('child_process');
 
 const testFiles = [
+  'game/tests/game.bot.core.node.test.js',
   'game/tests/tournament.core.node.test.js',
   'game/tests/simulation.node.test.js',
 ];

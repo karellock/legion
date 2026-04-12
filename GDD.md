@@ -46,10 +46,10 @@ This document describes the design for the Legion game prototype.
 - Environment: Pure HTML5 Canvas and Vanilla JavaScript.
 - Dependencies: No external dependencies or game engines.
 - Architecture: Keep modules small and deterministic.
-  - Main game: `game/index.html` + `game/js/game.js` + `game/js/simulation.js`.
+  - Main game: `game/index.html` + `game/js/game.js` + `game/js/simulation.js` + `game/js/game-bot-core.js`.
   - Tournament shared pure helpers: `game/js/tournament-core.js`.
   - Tournament UI orchestration/history: `game/js/tournament.js` + `game/tournament.html`.
-  - Regression tests: `game/tests/simulation.node.test.js` and `game/tests/tournament.core.node.test.js`.
+  - Regression tests: `game/tests/simulation.node.test.js`, `game/tests/game.bot.core.node.test.js`, and `game/tests/tournament.core.node.test.js`.
 
 ## Core Game Rules
 

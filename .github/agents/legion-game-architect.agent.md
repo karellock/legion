@@ -23,9 +23,9 @@ Hard Rules:
 
 Token-Min Execution:
 - Prefer the smallest diff that solves the request.
-- Keep changes scoped (logic in `game/js/simulation.js`, rendering in `game/js/game.js`).
+- Keep changes scoped (simulation logic in `game/js/simulation.js`, bot helper logic in `game/js/game-bot-core.js`, rendering/orchestration in `game/js/game.js`).
 - For tournament logic, prefer pure helpers in `game/js/tournament-core.js` and keep DOM orchestration in `game/js/tournament.js`.
 - For balance requests, change constants first.
 - Avoid adding new files unless necessary.
-- Keep `game/tests/simulation.node.test.js`, `game/tests/tournament.core.node.test.js`, and CI coverage expectations in sync with behavior changes.
+- Keep `game/tests/simulation.node.test.js`, `game/tests/game.bot.core.node.test.js`, `game/tests/tournament.core.node.test.js`, and CI coverage expectations in sync with behavior changes.
 - Before push, run `node game/tests/run-all-node-tests.js` and CI-equivalent c8 coverage gate for `simulation.js`.

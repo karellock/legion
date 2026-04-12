@@ -56,6 +56,7 @@ const botStrategy = {
   left: 'none',
   right: 'none',
 };
+const botCore = window.LegionGameBotCore;
 let timeScale = 1;
 let selectedEntityRef = null;
 let selectionInfoEl = null;
@@ -1235,6 +1236,10 @@ function setupDevControls() {
 }
 
 function getUpgradeTypeForStrategy(strategy, snapshot) {
+  if (botCore?.getUpgradeTypeForStrategy) {
+    return botCore.getUpgradeTypeForStrategy(strategy, snapshot);
+  }
+
   if (strategy === 'damage-only') return 'damage';
   if (strategy === 'health-only') return 'health';
   if (strategy === 'spawn-only') return 'spawn';
@@ -1260,12 +1265,20 @@ function getUpgradeTypeForStrategy(strategy, snapshot) {
 }
 
 function nextUpgradeTypeForBot(side) {
+  if (botCore?.nextUpgradeTypeForBot) {
+    return botCore.nextUpgradeTypeForBot(simulation, side, botStrategy);
+  }
+
   const snapshot = simulation.getUpgradeSnapshot()[side];
   return getUpgradeTypeForStrategy(botStrategy[side], snapshot);
 }
 
 function runBotPurchasesForTick() {
-  // Run bots at 1 Hz to keep behavior readable while still deterministic by tick.
+  if (botCore?.runBotPurchasesForTick) {
+    botCore.runBotPurchasesForTick({ simulation, state, constants, botStrategy });
+    return;
+  }
+
   if (state.gameTime % constants.TICK_RATE !== 0) {
     return;
   }
