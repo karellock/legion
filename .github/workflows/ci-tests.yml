@@ -9,6 +9,12 @@ on:
 jobs:
   simulation-tests:
     runs-on: ubuntu-latest
+    env:
+      SIM_COVERAGE_CMD: >-
+        npx --yes c8 --all --include=game/js/simulation.js
+        --reporter=text --reporter=text-summary --reporter=json-summary
+        --check-coverage --lines 95 --functions 95 --branches 95 --statements 95
+        node game/tests/simulation.node.test.js
 
     steps:
       - name: Checkout
@@ -19,20 +25,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run simulation tests
+      - name: Run all node tests
         run: |
-          npx --yes c8 \
-            --all \
-            --include=game/js/simulation.js \
-            --reporter=text \
-            --reporter=text-summary \
-            --reporter=json-summary \
-            --check-coverage \
-            --lines 95 \
-            --functions 95 \
-            --branches 95 \
-            --statements 95 \
-            node game/tests/simulation.node.test.js
+          node game/tests/run-all-node-tests.js
+
+      - name: Run simulation coverage gate
+        run: |
+          $SIM_COVERAGE_CMD
 
       - name: Publish coverage summary
         if: always()

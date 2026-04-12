@@ -16,6 +16,8 @@ function createSimulation(options = {}) {
   const towerHp = Math.max(0, Math.floor(Number(options.towerHp ?? 700)));
   const towersEnabled = options.enableTowers !== false;
   const spawnIntervalSeconds = Math.max(0.25, Number(options.spawnIntervalSeconds ?? 3));
+  const baseGoldPerSecond = Math.max(0, Math.round(Number(options.baseGoldPerSecond ?? 0)));
+  const shrineGoldPerSecond = Math.max(0, Math.round(Number(options.shrineGoldPerSecond ?? 2)));
 
   const constants = {
     TICK_RATE: 60,
@@ -43,7 +45,8 @@ function createSimulation(options = {}) {
     BASE_DAMAGE: Math.max(0, Number(options.baseDamage ?? 14)),
     BASE_VISION_RANGE: 200,
     KILL_BOUNTY_GOLD: 10,
-    SHRINE_GOLD_PER_SECOND: 2,
+    BASE_GOLD_PER_SECOND: baseGoldPerSecond,
+    SHRINE_GOLD_PER_SECOND: shrineGoldPerSecond,
     UPGRADE_BASE_COST: 20,
     UPGRADE_DAMAGE_PER_LEVEL: 1,
     UPGRADE_HEALTH_PER_LEVEL: 5,
@@ -357,6 +360,7 @@ function createSimulation(options = {}) {
     leftTotalGold: 0,
     rightTotalGold: 0,
     damagePopups: [],
+    baseIncomeTickCounter: 0,
     shrineControl: 'neutral',
     shrineTickCounter: 0,
     leftUpgrades: null,
@@ -564,6 +568,44 @@ function createSimulation(options = {}) {
     };
   }
 
+  function setStructureVitalityValues(config = {}) {
+    const nextTowerHp = Number(config.towerHp);
+    const nextBaseHp = Number(config.baseHp);
+
+    if (Number.isFinite(nextTowerHp)) {
+      const clampedTowerHp = Math.max(0, Math.floor(nextTowerHp));
+      const towers = [state.leftTower, state.rightTower];
+      for (const tower of towers) {
+        if (!tower) {
+          continue;
+        }
+        const hpScale = tower.maxHealth > 0 ? tower.health / tower.maxHealth : 0;
+        tower.maxHealth = clampedTowerHp;
+        tower.health = clampedTowerHp === 0 ? 0 : Math.max(0, Math.min(clampedTowerHp, Math.round(clampedTowerHp * hpScale)));
+      }
+      constants.TOWER_HP = clampedTowerHp;
+    }
+
+    if (Number.isFinite(nextBaseHp)) {
+      const clampedBaseHp = Math.max(1, Math.floor(nextBaseHp));
+      const bases = [state.leftBase, state.rightBase];
+      for (const base of bases) {
+        if (!base) {
+          continue;
+        }
+        const hpScale = base.maxHealth > 0 ? base.health / base.maxHealth : 0;
+        base.maxHealth = clampedBaseHp;
+        base.health = Math.max(1, Math.min(clampedBaseHp, Math.round(clampedBaseHp * hpScale)));
+      }
+      constants.BASE_HP = clampedBaseHp;
+    }
+
+    return {
+      towerHp: constants.TOWER_HP,
+      baseHp: constants.BASE_HP,
+    };
+  }
+
   function setProtectionWindows(config = {}) {
     const nextStructureDamageGraceSeconds = Number(config.structureDamageGraceSeconds);
     const nextBaseDamageGraceSeconds = Number(config.baseDamageGraceSeconds);
@@ -584,6 +626,7 @@ function createSimulation(options = {}) {
 
   function setEconomyValues(config = {}) {
     const nextKillBountyGold = Number(config.killBountyGold);
+    const nextBaseGoldPerSecond = Number(config.baseGoldPerSecond);
     const nextShrineGoldPerSecond = Number(config.shrineGoldPerSecond);
     const nextUpgradeBaseCost = Number(config.upgradeBaseCost);
     const nextUpgradeCostGrowth = Number(config.upgradeCostGrowth);
@@ -599,6 +642,10 @@ function createSimulation(options = {}) {
 
     if (Number.isFinite(nextKillBountyGold)) {
       constants.KILL_BOUNTY_GOLD = Math.max(0, Math.round(nextKillBountyGold));
+    }
+
+    if (Number.isFinite(nextBaseGoldPerSecond)) {
+      constants.BASE_GOLD_PER_SECOND = Math.max(0, Math.round(nextBaseGoldPerSecond));
     }
 
     if (Number.isFinite(nextShrineGoldPerSecond)) {
@@ -660,6 +707,7 @@ function createSimulation(options = {}) {
 
     return {
       killBountyGold: constants.KILL_BOUNTY_GOLD,
+      baseGoldPerSecond: constants.BASE_GOLD_PER_SECOND,
       shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
       upgradeBaseCost: constants.UPGRADE_BASE_COST,
       upgradeCostGrowth: constants.UPGRADE_COST_GROWTH,
@@ -713,6 +761,7 @@ function createSimulation(options = {}) {
     state.leftTotalGold = 0;
     state.rightTotalGold = 0;
     state.damagePopups = [];
+    state.baseIncomeTickCounter = 0;
     state.shrineControl = 'neutral';
     state.shrineTickCounter = 0;
     state.leftUpgrades = createUpgradeState();
@@ -913,6 +962,19 @@ function createSimulation(options = {}) {
     while (state.shrineTickCounter >= constants.TICK_RATE) {
       awardGold(controller, constants.SHRINE_GOLD_PER_SECOND);
       state.shrineTickCounter -= constants.TICK_RATE;
+    }
+  }
+
+  function tickBaseIncome() {
+    if (constants.BASE_GOLD_PER_SECOND <= 0) {
+      return;
+    }
+
+    state.baseIncomeTickCounter++;
+    while (state.baseIncomeTickCounter >= constants.TICK_RATE) {
+      awardGold('left', constants.BASE_GOLD_PER_SECOND);
+      awardGold('right', constants.BASE_GOLD_PER_SECOND);
+      state.baseIncomeTickCounter -= constants.TICK_RATE;
     }
   }
 
@@ -1470,6 +1532,7 @@ function createSimulation(options = {}) {
       }
     }
 
+    tickBaseIncome();
     tickShrineIncome(state.peons.filter(peon => peon.isAlive() && !peon.isOffLane()));
 
       pushDecisionLog({
@@ -1523,6 +1586,7 @@ function createSimulation(options = {}) {
     setSpawnLayout,
     setSpawnTiming,
     setPeonValues,
+    setStructureVitalityValues,
     setStructureDamageScaling,
     setStructureCombatValues,
     setProtectionWindows,

@@ -114,16 +114,19 @@ runTest('economy values can be updated at runtime', () => {
   const result = simulation.setEconomyValues({
     upgradeBaseCost: 35,
     killBountyGold: 14,
+    baseGoldPerSecond: 3,
     shrineGoldPerSecond: 5,
     upgradeCostGrowth: 1.25,
   });
 
   assert(result.upgradeBaseCost === 35, 'upgrade base cost should update at runtime');
   assert(result.killBountyGold === 14, 'kill bounty gold should update at runtime');
+  assert(result.baseGoldPerSecond === 3, 'base gold income should update at runtime');
   assert(result.shrineGoldPerSecond === 5, 'shrine gold income should update at runtime');
   assert(result.upgradeCostGrowth === 1.25, 'upgrade cost growth should update at runtime');
   assert(simulation.constants.UPGRADE_BASE_COST === 35, 'upgrade base cost constant should be updated');
   assert(simulation.constants.KILL_BOUNTY_GOLD === 14, 'kill bounty constant should be updated');
+  assert(simulation.constants.BASE_GOLD_PER_SECOND === 3, 'base passive income constant should be updated');
   assert(simulation.constants.SHRINE_GOLD_PER_SECOND === 5, 'shrine income constant should be updated');
   assert(simulation.constants.UPGRADE_COST_GROWTH === 1.25, 'upgrade cost growth constant should be updated');
   assert(simulation.getUpgradeSnapshot().left.nextDamageCost === 35, 'next upgrade cost should reflect updated base cost');
@@ -197,6 +200,19 @@ runTest('damage and health upgrade cost formulas support linear and hybrid modes
   assert(h2.cost === healthHybridL2, 'hybrid health level 2 should average linear and exponential costs');
 });
 
+runTest('spawn upgrade cost formula can be updated at runtime', () => {
+  const simulation = createSimulation();
+
+  const result = simulation.setEconomyValues({
+    upgradeSpawnBaseCost: 40,
+    upgradeSpawnCostGrowth: 1.25,
+    upgradeSpawnCostFormula: 'linear',
+  });
+
+  assert(result.upgradeSpawnCostFormula === 'linear', 'spawn cost formula should update at runtime');
+  assert(simulation.getUpgradeSnapshot().left.nextSpawnCost === 40, 'first spawn upgrade should still use updated base cost');
+});
+
 runTest('structure combat values can be updated at runtime', () => {
   const simulation = createSimulation();
 
@@ -215,6 +231,57 @@ runTest('structure combat values can be updated at runtime', () => {
     'tower cooldown should be recalculated from new fire rate');
   assert(simulation.state.leftBase.attackCooldown === simulation.constants.TICK_RATE / 0.6,
     'base cooldown should be recalculated from new fire rate');
+});
+
+runTest('structure HP values can be updated at runtime', () => {
+  const simulation = createSimulation({ towerHp: 700, baseHp: 2000 });
+
+  simulation.state.leftTower.takeDamage(350);
+  simulation.state.leftBase.takeDamage(1000);
+
+  const result = simulation.setStructureVitalityValues({ towerHp: 900, baseHp: 2500 });
+
+  assert(result.towerHp === 900, 'tower hp should update at runtime');
+  assert(result.baseHp === 2500, 'base hp should update at runtime');
+  assert(simulation.constants.TOWER_HP === 900, 'tower hp constant should update');
+  assert(simulation.constants.BASE_HP === 2500, 'base hp constant should update');
+  assert(simulation.state.leftTower.maxHealth === 900, 'tower max hp should update on active state');
+  assert(simulation.state.leftBase.maxHealth === 2500, 'base max hp should update on active state');
+  assert(simulation.state.leftTower.health === 450, 'tower current hp should preserve damage ratio');
+  assert(simulation.state.leftBase.health === 1250, 'base current hp should preserve damage ratio');
+});
+
+runTest('structure HP updates allow zero towers and clamp base hp minimum', () => {
+  const simulation = createSimulation({ towerHp: 700, baseHp: 2000 });
+
+  const result = simulation.setStructureVitalityValues({ towerHp: 0, baseHp: 0 });
+
+  assert(result.towerHp === 0, 'tower hp should allow disabling towers at runtime');
+  assert(result.baseHp === 1, 'base hp should clamp to minimum 1 at runtime');
+  assert(simulation.state.leftTower.health === 0, 'tower health should drop to zero when tower hp is disabled');
+  assert(simulation.state.rightTower.health === 0, 'right tower health should drop to zero when tower hp is disabled');
+  assert(simulation.state.leftBase.health === 1, 'base health should clamp to minimum 1');
+  assert(simulation.state.rightBase.health === 1, 'right base health should clamp to minimum 1');
+});
+
+runTest('structure HP updates can target towers or bases independently', () => {
+  const simulation = createSimulation({ towerHp: 700, baseHp: 2000 });
+
+  simulation.setStructureVitalityValues({ towerHp: 850 });
+  assert(simulation.constants.TOWER_HP === 850, 'tower hp should update when only tower hp is provided');
+  assert(simulation.constants.BASE_HP === 2000, 'base hp should stay unchanged when not provided');
+
+  simulation.setStructureVitalityValues({ baseHp: 2300 });
+  assert(simulation.constants.TOWER_HP === 850, 'tower hp should stay unchanged when only base hp is provided');
+  assert(simulation.constants.BASE_HP === 2300, 'base hp should update when only base hp is provided');
+});
+
+runTest('disabled towers start with zero health even when tower hp is configured', () => {
+  const simulation = createSimulation({ enableTowers: false, towerHp: 900 });
+
+  assert(simulation.state.leftTower.health === 0, 'left tower should start disabled when towers are off');
+  assert(simulation.state.rightTower.health === 0, 'right tower should start disabled when towers are off');
+  assert(simulation.state.leftTower.maxHealth === 900, 'tower max hp should still reflect configured tower hp');
 });
 
 runTest('protection windows can be updated at runtime', () => {
@@ -561,6 +628,30 @@ runTest('gold shrine grants passive income only when one side controls midline p
   assert(simulation.state.rightGold === 0, 'right should not gain shrine income during neutral control');
 });
 
+runTest('base passive income grants equal gold to both sides each second', () => {
+  const simulation = createSimulation({ baseGoldPerSecond: 3, shrineGoldPerSecond: 0 });
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 3);
+
+  assert(simulation.state.leftGold === 9, 'left should gain passive base income every second');
+  assert(simulation.state.rightGold === 9, 'right should gain passive base income every second');
+  assert(simulation.state.leftTotalGold === 9, 'left total gold should track passive base income');
+  assert(simulation.state.rightTotalGold === 9, 'right total gold should track passive base income');
+});
+
+runTest('base passive income does nothing when configured to zero', () => {
+  const simulation = createSimulation({ baseGoldPerSecond: 0, shrineGoldPerSecond: 0 });
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  advanceTicks(simulation, simulation.constants.TICK_RATE * 3);
+
+  assert(simulation.state.leftGold === 0, 'left should gain no passive income when base gold is zero');
+  assert(simulation.state.rightGold === 0, 'right should gain no passive income when base gold is zero');
+});
+
 runTest('buyUpgrade rejects purchase when side lacks enough gold', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -571,6 +662,20 @@ runTest('buyUpgrade rejects purchase when side lacks enough gold', () => {
   assert(result.ok === false, 'purchase should fail when gold is insufficient');
   assert(result.reason === 'insufficient-gold', 'failure reason should be insufficient gold');
   assert(simulation.state.leftUpgrades.damageLevel === 0, 'damage level should remain unchanged after failed purchase');
+});
+
+runTest('buyUpgrade allows zero-cost upgrades without spending gold', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setEconomyValues({ upgradeDamageBaseCost: 0 });
+
+  const result = simulation.buyUpgrade('left', 'damage');
+
+  assert(result.ok === true, 'zero-cost upgrade should succeed');
+  assert(result.cost === 0, 'zero-cost upgrade should spend zero gold');
+  assert(simulation.state.leftGold === 0, 'gold should remain unchanged for zero-cost upgrade');
+  assert(simulation.state.leftUpgrades.damageLevel === 1, 'upgrade level should still increase for zero-cost upgrade');
 });
 
 runTest('buyUpgrade rejects invalid side', () => {

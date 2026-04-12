@@ -4,22 +4,25 @@ const SETTINGS_DEFAULTS_KEY = `legion-dev-settings-defaults-${GAME_VERSION}`;
 const TOURNAMENT_HISTORY_KEY = 'legion-tournament-history-v1';
 const TOURNAMENT_HISTORY_MANIFEST_URL = '../logs/tournament-history-manifest.json';
 const TOURNAMENT_HISTORY_LIMIT = 300;
+const tournamentCore = typeof window !== 'undefined' ? window.LegionTournamentCore : null;
+const sessionCore = typeof window !== 'undefined' ? window.LegionGameSessionCore : null;
 
 let tournamentHistory = [];
 let selectedHistoryIds = new Set();
 let latestTournamentRun = null;
 
-const STRATEGIES = [
+const STRATEGIES = tournamentCore?.STRATEGIES || [
   { id: 'damage-only', label: 'Damage Only' },
   { id: 'health-only', label: 'Health Only' },
   { id: 'spawn-only', label: 'Spawn Only' },
+  { id: 'cheapest-first', label: 'Cheapest First' },
   { id: 'balanced', label: 'Balanced' },
   { id: 'damage-health', label: 'Double Trouble: D + HP' },
   { id: 'damage-spawn', label: 'Double Trouble: D + Spawn' },
   { id: 'health-spawn', label: 'Double Trouble: HP + Spawn' },
 ];
 
-const MAP_PROFILES = {
+const MAP_PROFILES = tournamentCore?.MAP_PROFILES || {
   classic: {
     length: 800,
     laneInset: 100,
@@ -53,9 +56,30 @@ function getSavedSettings() {
 }
 
 function getUpgradeTypeForStrategy(strategy, snapshot) {
+  if (tournamentCore?.getUpgradeTypeForStrategy) {
+    return tournamentCore.getUpgradeTypeForStrategy(strategy, snapshot);
+  }
+
   if (strategy === 'damage-only') return 'damage';
   if (strategy === 'health-only') return 'health';
   if (strategy === 'spawn-only') return 'spawn';
+  if (strategy === 'cheapest-first') {
+    const costs = [
+      { type: 'damage', cost: Number(snapshot.nextDamageCost) },
+      { type: 'health', cost: Number(snapshot.nextHealthCost) },
+      { type: 'spawn', cost: Number(snapshot.nextSpawnCost) },
+    ].filter(entry => Number.isFinite(entry.cost));
+
+    if (costs.length === 0) {
+      return null;
+    }
+
+    costs.sort((a, b) => {
+      if (a.cost !== b.cost) return a.cost - b.cost;
+      return a.type.localeCompare(b.type);
+    });
+    return costs[0].type;
+  }
 
   if (strategy === 'balanced') {
     const levels = [
@@ -78,6 +102,10 @@ function getUpgradeTypeForStrategy(strategy, snapshot) {
 }
 
 function clampNumber(value, fallback, min, max) {
+  if (tournamentCore?.clampNumber) {
+    return tournamentCore.clampNumber(value, fallback, min, max);
+  }
+
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, parsed));
@@ -260,6 +288,10 @@ function formatHistoryTimestamp(isoText) {
 }
 
 function computeRunAggregateStats(run) {
+  if (tournamentCore?.computeRunAggregateStats) {
+    return tournamentCore.computeRunAggregateStats(run);
+  }
+
   const pairResults = Array.isArray(run.pairResults) ? run.pairResults : [];
   let draws = 0;
   let timeouts = 0;
@@ -347,31 +379,72 @@ function renderHistoryTable() {
     return;
   }
 
-  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th><th>Settings</th></tr>';
-  const body = tournamentHistory.map(run => {
+  const table = document.createElement('table');
+  table.className = 'tournamentTable';
+
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  for (const text of ['Compare', 'Date', 'Source', 'Strategies', 'Matches', 'Top', 'Map', 'Settings', 'Open']) {
+    const th = document.createElement('th');
+    if (text === 'Compare') {
+      th.className = 'historySelectCell';
+    }
+    th.textContent = text;
+    headerRow.appendChild(th);
+  }
+
+  const tbody = table.createTBody();
+  for (const run of tournamentHistory) {
     const stats = computeRunAggregateStats(run);
-    const checked = selectedHistoryIds.has(run.id) ? 'checked' : '';
     const topText = stats.top
       ? `${stats.top.name} ${(stats.top.winRate * 100).toFixed(1)}%`
       : '-';
     const mapLength = Number(run?.mapConfig?.length) || '-';
     const towers = run?.mapConfig?.enableTowers ? 'on' : 'off';
 
-    return `
-      <tr>
-        <td><input class="historyCompareCheckbox" data-run-id="${run.id}" type="checkbox" ${checked} /></td>
-        <td>${formatHistoryTimestamp(run.timestamp)}</td>
-        <td><span class="historySourceTag">${run.source}</span></td>
-        <td>${run.selectedStrategies.length}</td>
-        <td>${run.totalMatches}</td>
-        <td>${topText}</td>
-        <td>${mapLength}px, towers ${towers}</td>
-        <td><button type="button" class="historyViewSettingsBtn" data-run-id="${run.id}">View Settings</button></td>
-      </tr>
-    `;
-  }).join('');
+    const tr = tbody.insertRow();
 
-  wrap.innerHTML = `<table class="tournamentTable">${header}${body}</table>`;
+    const checkboxTd = tr.insertCell();
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'historyCompareCheckbox';
+    checkbox.dataset.runId = run.id;
+    checkbox.checked = selectedHistoryIds.has(run.id);
+    checkboxTd.appendChild(checkbox);
+
+    const dateTd = tr.insertCell();
+    dateTd.textContent = formatHistoryTimestamp(run.timestamp);
+
+    const sourceTd = tr.insertCell();
+    const sourceSpan = document.createElement('span');
+    sourceSpan.className = 'historySourceTag';
+    sourceSpan.textContent = run.source;
+    sourceTd.appendChild(sourceSpan);
+
+    tr.insertCell().textContent = run.selectedStrategies.length;
+    tr.insertCell().textContent = run.totalMatches;
+    tr.insertCell().textContent = topText;
+    tr.insertCell().textContent = `${mapLength}px, towers ${towers}`;
+
+    const viewTd = tr.insertCell();
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'historyViewSettingsBtn';
+    viewBtn.dataset.runId = run.id;
+    viewBtn.textContent = 'View Settings';
+    viewTd.appendChild(viewBtn);
+
+    const openTd = tr.insertCell();
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'historyOpenInGameBtn';
+    openBtn.dataset.runId = run.id;
+    openBtn.textContent = 'Open In Main';
+    openTd.appendChild(openBtn);
+  }
+
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
 
   for (const checkbox of document.querySelectorAll('.historyCompareCheckbox')) {
     checkbox.addEventListener('change', event => {
@@ -425,6 +498,34 @@ function renderHistoryTable() {
       if (statusEl) {
         statusEl.textContent = `Showing settings for ${formatHistoryTimestamp(run.timestamp)} (${run.source}).`;
       }
+    });
+  }
+
+  for (const openButton of document.querySelectorAll('.historyOpenInGameBtn')) {
+    openButton.addEventListener('click', event => {
+      const runId = event.target.getAttribute('data-run-id');
+      if (!runId || !sessionCore) {
+        return;
+      }
+
+      const run = tournamentHistory.find(entry => entry.id === runId);
+      if (!run) {
+        return;
+      }
+
+      const payload = sessionCore.createGameSessionFromTournamentRun(run);
+      if (!payload) {
+        setHistoryStatus('Could not build session payload for selected run.');
+        return;
+      }
+
+      const sessionId = sessionCore.storeSessionPayload(payload, { prefix: 'tournament' });
+      if (!sessionId) {
+        setHistoryStatus('Could not store session payload for selected run.');
+        return;
+      }
+
+      window.location.href = sessionCore.buildMainGameUrlForSession(sessionId);
     });
   }
 
@@ -603,6 +704,10 @@ function getSelectedStrategies() {
 }
 
 function buildRoundRobinPairs(strategies) {
+  if (tournamentCore?.buildRoundRobinPairs) {
+    return tournamentCore.buildRoundRobinPairs(strategies);
+  }
+
   const pairs = [];
   for (let i = 0; i < strategies.length; i++) {
     for (let j = i + 1; j < strategies.length; j++) {
@@ -627,6 +732,7 @@ function createSimFromConfig(settings, mapConfig) {
     laneInset: mapConfig.laneInset,
     enableTowers: mapConfig.enableTowers,
     baseHp: mapConfig.baseHp,
+    towerHp: Number.isFinite(Number(settings.towerHp)) ? settings.towerHp : undefined,
     towerAttackRate: settings.towerAttackRate,
     towerDamage: settings.towerDamage,
     baseAttackRate: settings.baseAttackRate,
@@ -653,6 +759,7 @@ function createSimFromConfig(settings, mapConfig) {
 
   sim.setEconomyValues({
     killBountyGold: settings.killBountyGold,
+    baseGoldPerSecond: settings.baseGoldPerSecond,
     shrineGoldPerSecond: settings.shrineGoldPerSecond,
   });
 
@@ -756,6 +863,10 @@ function runPairSeries({ strategyA, strategyB, matchesPerSide, settings, mapConf
 }
 
 function buildLeaderboardRows(summaryByStrategy) {
+  if (tournamentCore?.buildLeaderboardRows) {
+    return tournamentCore.buildLeaderboardRows(summaryByStrategy);
+  }
+
   return [...summaryByStrategy.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     return b.winRate - a.winRate;

@@ -26,6 +26,8 @@ This document describes the design for the Legion game prototype.
   - Click-to-inspect entity panel for units and structures (HP, damage, range, side, id).
   - Time-scale control (0.25x to 4x) for pacing and balance iteration.
   - Scripted AI spending bots (damage-only, health-only, spawn-only, balanced) for both sides.
+  - Tournament Lab with round-robin AI battles, history export/import, and local manifest auto-load for logs.
+  - Tournament history stores complete run settings snapshot for auditability.
 
 ### Not Done Yet
 
@@ -43,7 +45,11 @@ This document describes the design for the Legion game prototype.
 
 - Environment: Pure HTML5 Canvas and Vanilla JavaScript.
 - Dependencies: No external dependencies or game engines.
-- Architecture: Keep the code modular but simple. The game entry should live under `game/index.html`, with `game/style.css` for layout and `game/js/game.js` for the main loop.
+- Architecture: Keep modules small and deterministic.
+  - Main game: `game/index.html` + `game/js/game.js` + `game/js/simulation.js` + `game/js/game-bot-core.js`.
+  - Tournament shared pure helpers: `game/js/tournament-core.js`.
+  - Tournament UI orchestration/history: `game/js/tournament.js` + `game/tournament.html`.
+  - Regression tests: `game/tests/simulation.node.test.js`, `game/tests/game.bot.core.node.test.js`, and `game/tests/tournament.core.node.test.js`.
 
 ## Core Game Rules
 
@@ -55,17 +61,14 @@ This document describes the design for the Legion game prototype.
 
 ## Entities & Baseline Stats
 
-- The Peon (Basic Unit): 100 Max HP, 10 Damage, 1 Attack per second, moderate movement speed.
-- The Tower (1 per side): 500 Max HP, 20 Damage. Physically blocks the lane. Does not respawn once destroyed.
+- The Peon (Basic Unit): 100 Max HP, 9 Damage, 1 Attack per second, moderate movement speed.
+- The Tower (1 per side): 700 Max HP, 30 Damage (base). Physically blocks the lane. Does not respawn once destroyed.
 - The Main Base (1 per side): 2000 Max HP, 10 Damage. Can attack enemies to prevent a single weak unit from winning.
 - The Super Peon (Boss Unit): A massive, heavily armored unit unlocked in the late game to break stalemates.
 
 ## Spawning Dynamics
 
-- The Global Timer (Speed): The game clock controls how often waves spawn.
-  - Minute 1 = every 3 seconds.
-  - Minute 5 = every 2 seconds.
-  - Minute 10 = every 1 second.
+- The Global Timer (Speed): Spawn interval is deterministic and configurable (current default 6 seconds for balance iteration profile).
 - The Player Upgrade (Volume): Players upgrade the batch size of the spawn.
   - Level 1 = 1 unit per wave.
   - Level 2 = 2 units per wave.
