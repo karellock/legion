@@ -75,8 +75,8 @@ const botStrategy = {
 const botCore = window.LegionGameBotCore;
 const gameRender = window.LegionGameRender;
 const gameControls = window.LegionGameControls;
+const gameSelection = window.LegionGameSelection;
 let timeScale = 1;
-let selectedEntityRef = null;
 let selectionInfoEl = null;
 let matchResultPanelEl = null;
 let matchResultTitleEl = null;
@@ -114,6 +114,13 @@ const controls = gameControls?.createGameControls({
   setTimeScale: value => {
     timeScale = value;
   },
+});
+const selection = gameSelection?.createGameSelection({
+  canvas,
+  baseCanvasWidth: BASE_CANVAS_WIDTH,
+  baseCanvasHeight: BASE_CANVAS_HEIGHT,
+  state,
+  getSelectionInfoEl: () => selectionInfoEl,
 });
 
 
@@ -516,7 +523,7 @@ function restartMatch() {
   tickDelta = 0;
   isMatchPaused = false;
   suppressEndPauseUntilRestart = false;
-  selectedEntityRef = null;
+  selection?.clearSelection();
   if (matchResultPanelEl) {
     matchResultPanelEl.hidden = true;
   }
@@ -666,96 +673,8 @@ function runBotPurchasesForTick() {
   }
 }
 
-function pickEntityFromCanvasClick(event) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = BASE_CANVAS_WIDTH / rect.width;
-  const scaleY = BASE_CANVAS_HEIGHT / rect.height;
-  const x = (event.clientX - rect.left) * scaleX;
-  const y = (event.clientY - rect.top) * scaleY;
-
-  const candidates = [];
-
-  for (const peon of state.peons) {
-    if (!peon.isAlive()) {
-      continue;
-    }
-
-    const dx = x - peon.x;
-    const dy = y - peon.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance <= peon.size + 4) {
-      candidates.push({ type: 'peon', entity: peon, distance });
-    }
-  }
-
-  const towerHitPadding = 6;
-  for (const tower of [state.leftTower, state.rightTower]) {
-    if (tower.isDestroyed()) {
-      continue;
-    }
-
-    const halfW = tower.width / 2 + towerHitPadding;
-    const halfH = tower.height / 2 + towerHitPadding;
-    if (x >= tower.x - halfW && x <= tower.x + halfW && y >= tower.y - halfH && y <= tower.y + halfH) {
-      const dx = x - tower.x;
-      const dy = y - tower.y;
-      candidates.push({ type: 'tower', entity: tower, distance: Math.sqrt(dx * dx + dy * dy) });
-    }
-  }
-
-  for (const base of [state.leftBase, state.rightBase]) {
-    if (base.isDestroyed()) {
-      continue;
-    }
-
-    const dx = x - base.x;
-    const dy = y - base.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance <= base.size + 6) {
-      candidates.push({ type: 'base', entity: base, distance });
-    }
-  }
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort((a, b) => a.distance - b.distance);
-  return candidates[0];
-}
-
 function updateSelectionHud() {
-  if (!selectionInfoEl) {
-    return;
-  }
-
-  if (!selectedEntityRef) {
-    selectionInfoEl.textContent = 'Click a unit or structure to inspect stats.';
-    return;
-  }
-
-  const { type, entity } = selectedEntityRef;
-  if (!entity) {
-    selectionInfoEl.textContent = 'Selection unavailable.';
-    return;
-  }
-
-  if (type === 'peon' && !entity.isAlive()) {
-    selectionInfoEl.textContent = 'Selected peon died.';
-    return;
-  }
-
-  if ((type === 'tower' || type === 'base') && entity.isDestroyed()) {
-    selectionInfoEl.textContent = `Selected ${type} is destroyed.`;
-    return;
-  }
-
-  const hp = `${entity.health}/${entity.maxHealth}`;
-  const dmg = Number.isFinite(entity.damage) ? entity.damage : '-';
-  const range = Number.isFinite(entity.attackRange) ? entity.attackRange : '-';
-  const side = entity.side ?? '-';
-  const id = Number.isFinite(entity.id) ? entity.id : '-';
-  selectionInfoEl.textContent = `${type.toUpperCase()} #${id} | side ${side} | HP ${hp} | DMG ${dmg} | RNG ${range}`;
+  selection?.updateSelectionHud();
 }
 
 function updateUpgradeHud() {
@@ -963,8 +882,7 @@ function init() {
   simulation.setDecisionLogEnabled(true);
   selectionInfoEl = document.getElementById('selectionInfo');
   canvas.addEventListener('click', event => {
-    selectedEntityRef = pickEntityFromCanvasClick(event);
-    updateSelectionHud();
+    selection?.handleCanvasClick(event);
   });
   setupHudCollapseControls();
   setupMatchControls();
