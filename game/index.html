@@ -123,6 +123,16 @@
 
         <details class="devSection" open>
           <summary>Structures</summary>
+          <label class="devToolRow" for="towerHpRange">
+            <span>Tower HP</span>
+            <input id="towerHpRange" type="range" min="0" max="3000" step="50" value="700" />
+            <strong id="towerHpValue">700</strong>
+          </label>
+          <label class="devToolRow" for="baseHpRange">
+            <span>Base HP</span>
+            <input id="baseHpRange" type="range" min="100" max="5000" step="50" value="2000" />
+            <strong id="baseHpValue">2000</strong>
+          </label>
           <label class="devToolRow" for="towerDamagePerMinuteRange">
             <span>Tower Dmg/min</span>
             <input id="towerDamagePerMinuteRange" type="range" min="0" max="6" step="0.1" value="1.2" />
@@ -211,6 +221,11 @@
             <input id="killBountyGoldRange" type="range" min="0" max="50" step="1" value="10" />
             <strong id="killBountyGoldValue">10</strong>
           </label>
+          <label class="devToolRow" for="baseGoldPerSecondRange">
+            <span>Base Gold/s</span>
+            <input id="baseGoldPerSecondRange" type="range" min="0" max="20" step="1" value="0" />
+            <strong id="baseGoldPerSecondValue">0</strong>
+          </label>
           <label class="devToolRow" for="shrineGoldPerSecondRange">
             <span>Shrine Gold/s</span>
             <input id="shrineGoldPerSecondRange" type="range" min="0" max="20" step="1" value="0" />
@@ -286,6 +301,7 @@
   <script src="js/game-session-core.js"></script>
   <script src="js/game-bot-core.js"></script>
   <script src="js/game-render.js"></script>
+  <script src="js/game-settings.js"></script>
   <script src="js/game-controls.js"></script>
   <script src="js/game-selection.js"></script>
   <script src="js/game-match-ui.js"></script>

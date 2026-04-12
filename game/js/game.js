@@ -34,6 +34,8 @@ const BASE_SETTINGS = {
   peonHp: 100,
   peonDamage: 9,
   peonAttackRate: 1,
+  towerHp: 700,
+  baseHp: 2000,
   towerDamagePerMinute: 1.2,
   baseDamagePerMinute: 1.5,
   towerDamage: 30,
@@ -52,6 +54,7 @@ const BASE_SETTINGS = {
   upgradeSpawnCostGrowth: 1.55,
   upgradeSpawnCostFormula: 'exp',
   killBountyGold: 10,
+  baseGoldPerSecond: 0,
   shrineGoldPerSecond: 0,
 };
 const BASE_CANVAS_WIDTH = canvas.width;
@@ -77,6 +80,7 @@ const gameRender = window.LegionGameRender;
 const gameControls = window.LegionGameControls;
 const gameSelection = window.LegionGameSelection;
 const gameMatchUi = window.LegionGameMatchUi;
+const gameSettings = window.LegionGameSettings;
 let timeScale = 1;
 let selectionInfoEl = null;
 let isMatchPaused = false;
@@ -85,6 +89,15 @@ const activeSessionId = sessionEntry?.sessionId || null;
 
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
+const settingsManager = gameSettings?.createGameSettings({
+  simulation,
+  constants,
+  baseSettings: BASE_SETTINGS,
+  initialSessionPayload,
+  settingsKey: SETTINGS_KEY,
+  settingsDefaultsKey: SETTINGS_DEFAULTS_KEY,
+  storage: window.localStorage,
+});
 const renderer = gameRender?.createGameRenderer({
   ctx,
   baseCanvasWidth: BASE_CANVAS_WIDTH,
@@ -105,8 +118,8 @@ const controls = gameControls?.createGameControls({
   botStrategy,
   storage: window.localStorage,
   fitTableToWindow,
-  buildSettingsPayloadFromConstants,
-  getSavedOrDefaultSettings,
+  buildSettingsPayloadFromConstants: () => settingsManager?.buildSettingsPayloadFromConstants(),
+  getSavedOrDefaultSettings: () => settingsManager?.getSavedOrDefaultSettings(),
   getTimeScale: () => timeScale,
   setTimeScale: value => {
     timeScale = value;
@@ -146,116 +159,6 @@ let lastFrameTime = 0;
 let tickDelta = 0;
 let renderScaleX = 1;
 let renderScaleY = 1;
-
-function buildSettingsPayloadFromConstants() {
-  return {
-    spawnPadding: constants.SPAWN_SLOT_PADDING,
-    spawnSlotCount: constants.SPAWN_SLOT_COUNT,
-    spawnIntervalSeconds: constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE,
-    peonSpeed: constants.PEON_SPEED,
-    peonHp: constants.PEON_HP,
-    peonDamage: constants.PEON_DAMAGE,
-    peonAttackRate: constants.PEON_ATTACK_RATE,
-    towerDamagePerMinute: constants.TOWER_DAMAGE_PER_MINUTE,
-    baseDamagePerMinute: constants.BASE_DAMAGE_PER_MINUTE,
-    towerDamage: constants.TOWER_DAMAGE,
-    baseDamage: constants.BASE_DAMAGE,
-    towerAttackRate: constants.TOWER_ATTACK_RATE,
-    baseAttackRate: constants.BASE_ATTACK_RATE,
-    structureGraceSeconds: constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
-    baseGraceSeconds: constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
-    upgradeDamageBaseCost: constants.UPGRADE_DAMAGE_BASE_COST,
-    upgradeDamageCostGrowth: constants.UPGRADE_DAMAGE_COST_GROWTH,
-    upgradeDamageCostFormula: constants.UPGRADE_DAMAGE_COST_FORMULA,
-    upgradeHealthBaseCost: constants.UPGRADE_HEALTH_BASE_COST,
-    upgradeHealthCostGrowth: constants.UPGRADE_HEALTH_COST_GROWTH,
-    upgradeHealthCostFormula: constants.UPGRADE_HEALTH_COST_FORMULA,
-    upgradeSpawnBaseCost: constants.UPGRADE_SPAWN_BASE_COST,
-    upgradeSpawnCostGrowth: constants.UPGRADE_SPAWN_COST_GROWTH,
-    upgradeSpawnCostFormula: constants.UPGRADE_SPAWN_COST_FORMULA,
-    killBountyGold: constants.KILL_BOUNTY_GOLD,
-    shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
-  };
-}
-
-function parseStoredSettings(rawValue) {
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawValue);
-    return typeof parsed === 'object' && parsed !== null ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function ensureVersionDefaultsSaved() {
-  if (localStorage.getItem(SETTINGS_DEFAULTS_KEY)) {
-    return;
-  }
-
-  const savedSettings = parseStoredSettings(localStorage.getItem(SETTINGS_KEY));
-  const defaults = savedSettings || buildSettingsPayloadFromConstants();
-  localStorage.setItem(SETTINGS_DEFAULTS_KEY, JSON.stringify(defaults));
-}
-
-function getSavedOrDefaultSettings() {
-  const savedSettings = parseStoredSettings(localStorage.getItem(SETTINGS_KEY));
-  if (savedSettings) {
-    return savedSettings;
-  }
-
-  return parseStoredSettings(localStorage.getItem(SETTINGS_DEFAULTS_KEY));
-}
-
-function applyBaseSettings(settings = BASE_SETTINGS) {
-  simulation.setSpawnLayout({
-    padding: settings.spawnPadding,
-    slotCount: settings.spawnSlotCount,
-  });
-  simulation.setSpawnTiming({
-    spawnIntervalSeconds: settings.spawnIntervalSeconds,
-  });
-  simulation.setPeonValues({
-    peonSpeed: settings.peonSpeed,
-    peonHp: settings.peonHp,
-    peonDamage: settings.peonDamage,
-    peonAttackRate: settings.peonAttackRate,
-  });
-  simulation.setStructureDamageScaling({
-    towerDamagePerMinute: settings.towerDamagePerMinute,
-    baseDamagePerMinute: settings.baseDamagePerMinute,
-  });
-  simulation.setStructureCombatValues({
-    towerDamage: settings.towerDamage,
-    baseDamage: settings.baseDamage,
-    towerAttackRate: settings.towerAttackRate,
-    baseAttackRate: settings.baseAttackRate,
-  });
-  simulation.setProtectionWindows({
-    structureDamageGraceSeconds: settings.structureGraceSeconds,
-    baseDamageGraceSeconds: settings.baseGraceSeconds,
-  });
-  simulation.setEconomyValues({
-    upgradeDamageBaseCost: settings.upgradeDamageBaseCost,
-    upgradeDamageCostGrowth: settings.upgradeDamageCostGrowth,
-    upgradeDamageCostFormula: settings.upgradeDamageCostFormula,
-    upgradeHealthBaseCost: settings.upgradeHealthBaseCost,
-    upgradeHealthCostGrowth: settings.upgradeHealthCostGrowth,
-    upgradeHealthCostFormula: settings.upgradeHealthCostFormula,
-    upgradeSpawnBaseCost: settings.upgradeSpawnBaseCost,
-    upgradeSpawnCostGrowth: settings.upgradeSpawnCostGrowth,
-    upgradeSpawnCostFormula: settings.upgradeSpawnCostFormula,
-    killBountyGold: settings.killBountyGold,
-    shrineGoldPerSecond: settings.shrineGoldPerSecond,
-  });
-}
-
-function shouldApplySessionSettings() {
-  return Boolean(initialSessionPayload && initialSessionPayload.settingsSnapshot && typeof initialSessionPayload.settingsSnapshot === 'object');
-}
 
 window.legionDebug = {
   toggleVisionRanges() {
@@ -327,6 +230,12 @@ window.legionDebug = {
     updateBalanceConfigHud();
     return result;
   },
+  setStructureVitalityValues(towerHp, baseHp) {
+    const result = simulation.setStructureVitalityValues({ towerHp, baseHp });
+    updateBalanceConfigHud();
+    updateSelectionHud();
+    return result;
+  },
   setProtectionWindows(structureDamageGraceSeconds, baseDamageGraceSeconds) {
     const result = simulation.setProtectionWindows({
       structureDamageGraceSeconds,
@@ -340,18 +249,19 @@ window.legionDebug = {
       ? args[0]
       : {
           killBountyGold: args[0],
-          shrineGoldPerSecond: args[1],
-          upgradeBaseCost: args[2],
-          upgradeCostGrowth: args[3],
-          upgradeDamageBaseCost: args[4],
-          upgradeDamageCostGrowth: args[5],
-          upgradeHealthBaseCost: args[6],
-          upgradeHealthCostGrowth: args[7],
-          upgradeSpawnBaseCost: args[8],
-          upgradeSpawnCostGrowth: args[9],
-          upgradeDamageCostFormula: args[10],
-          upgradeHealthCostFormula: args[11],
-          upgradeSpawnCostFormula: args[12],
+          baseGoldPerSecond: args[1],
+          shrineGoldPerSecond: args[2],
+          upgradeBaseCost: args[3],
+          upgradeCostGrowth: args[4],
+          upgradeDamageBaseCost: args[5],
+          upgradeDamageCostGrowth: args[6],
+          upgradeHealthBaseCost: args[7],
+          upgradeHealthCostGrowth: args[8],
+          upgradeSpawnBaseCost: args[9],
+          upgradeSpawnCostGrowth: args[10],
+          upgradeDamageCostFormula: args[11],
+          upgradeHealthCostFormula: args[12],
+          upgradeSpawnCostFormula: args[13],
         };
     const result = simulation.setEconomyValues(payload);
     updateUpgradeHud();
@@ -663,8 +573,10 @@ function getCurrentSimOptions() {
     height: BASE_CANVAS_HEIGHT,
     towerAttackRate: constants.TOWER_ATTACK_RATE,
     towerDamage: constants.TOWER_DAMAGE,
+    towerHp: constants.TOWER_HP,
     baseAttackRate: constants.BASE_ATTACK_RATE,
     baseDamage: constants.BASE_DAMAGE,
+    baseHp: constants.BASE_HP,
     upgradeDamageBaseCost: constants.UPGRADE_DAMAGE_BASE_COST,
     upgradeHealthBaseCost: constants.UPGRADE_HEALTH_BASE_COST,
     upgradeSpawnBaseCost: constants.UPGRADE_SPAWN_BASE_COST,
@@ -684,6 +596,8 @@ function getCurrentSimOptions() {
     peonDamage: constants.PEON_DAMAGE,
     peonAttackRate: constants.PEON_ATTACK_RATE,
     spawnCount: constants.SPAWN_COUNT,
+    baseGoldPerSecond: constants.BASE_GOLD_PER_SECOND,
+    shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
   };
 }
 
@@ -700,6 +614,7 @@ function runBattleTests({ leftStrategy, rightStrategy, matchCount }) {
     const sim = createSimulation(opts);
     sim.setEconomyValues({
       killBountyGold: constants.KILL_BOUNTY_GOLD,
+      baseGoldPerSecond: constants.BASE_GOLD_PER_SECOND,
       shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
     });
     sim.setSpawnLayout({
@@ -791,13 +706,13 @@ function setupBattleTestPanel() {
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
-  if (shouldApplySessionSettings()) {
-    ensureVersionDefaultsSaved();
-    applyBaseSettings(initialSessionPayload.settingsSnapshot);
+  if (settingsManager?.shouldApplySessionSettings()) {
+    settingsManager.ensureVersionDefaultsSaved();
+    settingsManager.applyBaseSettings(initialSessionPayload.settingsSnapshot);
     console.log(`Loaded session payload: ${activeSessionId}`);
   } else {
-    applyBaseSettings();
-    ensureVersionDefaultsSaved();
+    settingsManager?.applyBaseSettings();
+    settingsManager?.ensureVersionDefaultsSaved();
   }
   simulation.setDecisionLogEnabled(true);
   selectionInfoEl = document.getElementById('selectionInfo');

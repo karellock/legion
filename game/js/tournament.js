@@ -674,6 +674,7 @@ function createSimFromConfig(settings, mapConfig) {
     laneInset: mapConfig.laneInset,
     enableTowers: mapConfig.enableTowers,
     baseHp: mapConfig.baseHp,
+    towerHp: Number.isFinite(Number(settings.towerHp)) ? settings.towerHp : undefined,
     towerAttackRate: settings.towerAttackRate,
     towerDamage: settings.towerDamage,
     baseAttackRate: settings.baseAttackRate,
@@ -700,6 +701,7 @@ function createSimFromConfig(settings, mapConfig) {
 
   sim.setEconomyValues({
     killBountyGold: settings.killBountyGold,
+    baseGoldPerSecond: settings.baseGoldPerSecond,
     shrineGoldPerSecond: settings.shrineGoldPerSecond,
   });
 

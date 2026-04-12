@@ -40,6 +40,10 @@
       peonDamageValueEl: null,
       peonAttackRateRangeEl: null,
       peonAttackRateValueEl: null,
+      towerHpRangeEl: null,
+      towerHpValueEl: null,
+      baseHpRangeEl: null,
+      baseHpValueEl: null,
       towerDamagePerMinuteRangeEl: null,
       towerDamagePerMinuteValueEl: null,
       towerDamageRangeEl: null,
@@ -67,6 +71,8 @@
       spawnUpgradeCostFormulaSelectEl: null,
       killBountyGoldRangeEl: null,
       killBountyGoldValueEl: null,
+      baseGoldPerSecondRangeEl: null,
+      baseGoldPerSecondValueEl: null,
       shrineGoldPerSecondRangeEl: null,
       shrineGoldPerSecondValueEl: null,
     };
@@ -162,8 +168,8 @@
 
         return 'E';
       };
-      const goldSummary = `Gold D${constants.UPGRADE_DAMAGE_BASE_COST}x${constants.UPGRADE_DAMAGE_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_DAMAGE_COST_FORMULA)} H${constants.UPGRADE_HEALTH_BASE_COST}x${constants.UPGRADE_HEALTH_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_HEALTH_COST_FORMULA)} S${constants.UPGRADE_SPAWN_BASE_COST}x${constants.UPGRADE_SPAWN_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_SPAWN_COST_FORMULA)} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
-      const structureSummary = `Struct T${constants.TOWER_DAMAGE}@${constants.TOWER_ATTACK_RATE.toFixed(2)} B${constants.BASE_DAMAGE}@${constants.BASE_ATTACK_RATE.toFixed(2)}`;
+      const goldSummary = `Gold D${constants.UPGRADE_DAMAGE_BASE_COST}x${constants.UPGRADE_DAMAGE_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_DAMAGE_COST_FORMULA)} H${constants.UPGRADE_HEALTH_BASE_COST}x${constants.UPGRADE_HEALTH_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_HEALTH_COST_FORMULA)} S${constants.UPGRADE_SPAWN_BASE_COST}x${constants.UPGRADE_SPAWN_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_SPAWN_COST_FORMULA)} K${constants.KILL_BOUNTY_GOLD} B${constants.BASE_GOLD_PER_SECOND}/s S${constants.SHRINE_GOLD_PER_SECOND}/s`;
+      const structureSummary = `Struct THP${constants.TOWER_HP} BHP${constants.BASE_HP} T${constants.TOWER_DAMAGE}@${constants.TOWER_ATTACK_RATE.toFixed(2)} B${constants.BASE_DAMAGE}@${constants.BASE_ATTACK_RATE.toFixed(2)}`;
       const peonSummary = `Peon SPD${constants.PEON_SPEED.toFixed(0)} HP${constants.PEON_HP} DMG${constants.PEON_DAMAGE} AR${constants.PEON_ATTACK_RATE.toFixed(2)} Spawn ${(constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE).toFixed(2)}s`;
       const sessionSummary = activeSessionId ? ` | Session ${activeSessionId}` : '';
 
@@ -214,6 +220,10 @@
       refs.peonDamageValueEl = document.getElementById('peonDamageValue');
       refs.peonAttackRateRangeEl = document.getElementById('peonAttackRateRange');
       refs.peonAttackRateValueEl = document.getElementById('peonAttackRateValue');
+      refs.towerHpRangeEl = document.getElementById('towerHpRange');
+      refs.towerHpValueEl = document.getElementById('towerHpValue');
+      refs.baseHpRangeEl = document.getElementById('baseHpRange');
+      refs.baseHpValueEl = document.getElementById('baseHpValue');
       refs.towerDamagePerMinuteRangeEl = document.getElementById('towerDamagePerMinuteRange');
       refs.towerDamagePerMinuteValueEl = document.getElementById('towerDamagePerMinuteValue');
       refs.towerDamageRangeEl = document.getElementById('towerDamageRange');
@@ -241,6 +251,8 @@
       refs.spawnUpgradeCostFormulaSelectEl = document.getElementById('spawnUpgradeCostFormulaSelect');
       refs.killBountyGoldRangeEl = document.getElementById('killBountyGoldRange');
       refs.killBountyGoldValueEl = document.getElementById('killBountyGoldValue');
+      refs.baseGoldPerSecondRangeEl = document.getElementById('baseGoldPerSecondRange');
+      refs.baseGoldPerSecondValueEl = document.getElementById('baseGoldPerSecondValue');
       refs.shrineGoldPerSecondRangeEl = document.getElementById('shrineGoldPerSecondRange');
       refs.shrineGoldPerSecondValueEl = document.getElementById('shrineGoldPerSecondValue');
 
@@ -347,6 +359,34 @@
         });
 
         syncPeonControls();
+        updateBalanceConfigHud();
+      };
+
+      const syncStructureVitalityControls = () => {
+        if (refs.towerHpRangeEl) {
+          refs.towerHpRangeEl.value = String(constants.TOWER_HP);
+        }
+        if (refs.towerHpValueEl) {
+          refs.towerHpValueEl.textContent = String(constants.TOWER_HP);
+        }
+        if (refs.baseHpRangeEl) {
+          refs.baseHpRangeEl.value = String(constants.BASE_HP);
+        }
+        if (refs.baseHpValueEl) {
+          refs.baseHpValueEl.textContent = String(constants.BASE_HP);
+        }
+      };
+
+      const applyStructureVitalityFromControls = () => {
+        const nextTowerHp = refs.towerHpRangeEl ? Number(refs.towerHpRangeEl.value) : constants.TOWER_HP;
+        const nextBaseHp = refs.baseHpRangeEl ? Number(refs.baseHpRangeEl.value) : constants.BASE_HP;
+
+        simulation.setStructureVitalityValues({
+          towerHp: nextTowerHp,
+          baseHp: nextBaseHp,
+        });
+
+        syncStructureVitalityControls();
         updateBalanceConfigHud();
       };
 
@@ -491,11 +531,17 @@
         if (refs.killBountyGoldValueEl) {
           refs.killBountyGoldValueEl.textContent = String(constants.KILL_BOUNTY_GOLD);
         }
+        if (refs.baseGoldPerSecondValueEl) {
+          refs.baseGoldPerSecondValueEl.textContent = String(constants.BASE_GOLD_PER_SECOND);
+        }
         if (refs.shrineGoldPerSecondValueEl) {
           refs.shrineGoldPerSecondValueEl.textContent = String(constants.SHRINE_GOLD_PER_SECOND);
         }
         if (refs.killBountyGoldRangeEl) {
           refs.killBountyGoldRangeEl.value = String(constants.KILL_BOUNTY_GOLD);
+        }
+        if (refs.baseGoldPerSecondRangeEl) {
+          refs.baseGoldPerSecondRangeEl.value = String(constants.BASE_GOLD_PER_SECOND);
         }
         if (refs.shrineGoldPerSecondRangeEl) {
           refs.shrineGoldPerSecondRangeEl.value = String(constants.SHRINE_GOLD_PER_SECOND);
@@ -533,6 +579,9 @@
         const nextKillBountyGold = refs.killBountyGoldRangeEl
           ? Number(refs.killBountyGoldRangeEl.value)
           : constants.KILL_BOUNTY_GOLD;
+        const nextBaseGoldPerSecond = refs.baseGoldPerSecondRangeEl
+          ? Number(refs.baseGoldPerSecondRangeEl.value)
+          : constants.BASE_GOLD_PER_SECOND;
         const nextShrineGoldPerSecond = refs.shrineGoldPerSecondRangeEl
           ? Number(refs.shrineGoldPerSecondRangeEl.value)
           : constants.SHRINE_GOLD_PER_SECOND;
@@ -548,6 +597,7 @@
           upgradeHealthCostFormula: nextHealthUpgradeCostFormula,
           upgradeSpawnCostFormula: nextSpawnUpgradeCostFormula,
           killBountyGold: nextKillBountyGold,
+          baseGoldPerSecond: nextBaseGoldPerSecond,
           shrineGoldPerSecond: nextShrineGoldPerSecond,
         });
 
@@ -576,6 +626,12 @@
       }
       if (refs.peonAttackRateRangeEl) {
         refs.peonAttackRateRangeEl.addEventListener('input', applyPeonControls);
+      }
+      if (refs.towerHpRangeEl) {
+        refs.towerHpRangeEl.addEventListener('input', applyStructureVitalityFromControls);
+      }
+      if (refs.baseHpRangeEl) {
+        refs.baseHpRangeEl.addEventListener('input', applyStructureVitalityFromControls);
       }
       if (refs.towerDamagePerMinuteRangeEl) {
         refs.towerDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
@@ -631,12 +687,16 @@
       if (refs.killBountyGoldRangeEl) {
         refs.killBountyGoldRangeEl.addEventListener('input', applyEconomyFromControls);
       }
+      if (refs.baseGoldPerSecondRangeEl) {
+        refs.baseGoldPerSecondRangeEl.addEventListener('input', applyEconomyFromControls);
+      }
       if (refs.shrineGoldPerSecondRangeEl) {
         refs.shrineGoldPerSecondRangeEl.addEventListener('input', applyEconomyFromControls);
       }
 
       syncSpawnControls();
       syncPeonControls();
+      syncStructureVitalityControls();
       syncStructureDamageControls();
       syncStructureCombatControls();
       syncProtectionControls();
@@ -665,6 +725,10 @@
           peonDamage: Number.isFinite(Number(settings.peonDamage)) ? settings.peonDamage : constants.PEON_DAMAGE,
           peonAttackRate: Number.isFinite(Number(settings.peonAttackRate)) ? settings.peonAttackRate : constants.PEON_ATTACK_RATE,
         });
+        simulation.setStructureVitalityValues({
+          towerHp: Number.isFinite(Number(settings.towerHp)) ? settings.towerHp : constants.TOWER_HP,
+          baseHp: Number.isFinite(Number(settings.baseHp)) ? settings.baseHp : constants.BASE_HP,
+        });
         simulation.setStructureDamageScaling({ towerDamagePerMinute: settings.towerDamagePerMinute, baseDamagePerMinute: settings.baseDamagePerMinute });
         simulation.setStructureCombatValues({ towerDamage: settings.towerDamage, baseDamage: settings.baseDamage, towerAttackRate: settings.towerAttackRate, baseAttackRate: settings.baseAttackRate });
         simulation.setProtectionWindows({ structureDamageGraceSeconds: settings.structureGraceSeconds, baseDamageGraceSeconds: settings.baseGraceSeconds });
@@ -679,10 +743,12 @@
           upgradeSpawnCostGrowth: settings.upgradeSpawnCostGrowth,
           upgradeSpawnCostFormula: settings.upgradeSpawnCostFormula,
           killBountyGold: settings.killBountyGold,
+          baseGoldPerSecond: settings.baseGoldPerSecond,
           shrineGoldPerSecond: settings.shrineGoldPerSecond,
         });
         syncSpawnControls();
         syncPeonControls();
+        syncStructureVitalityControls();
         syncStructureDamageControls();
         syncStructureCombatControls();
         syncProtectionControls();
