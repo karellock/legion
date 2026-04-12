@@ -28,7 +28,7 @@
           <input id="mapLengthInput" type="number" min="600" max="6000" step="50" value="2200" />
         </label>
         <label>
-          <span>Lane Inset</span>
+          <span>Lane Edge Offset</span>
           <input id="laneInsetInput" type="number" min="10" max="300" step="5" value="40" />
         </label>
         <label>
@@ -40,6 +40,7 @@
           <input id="enableTowersInput" type="checkbox" />
         </label>
       </div>
+      <div id="mapGeometryInfo" class="tournamentStatus">Map geometry info will appear here.</div>
     </section>
 
     <section class="tournamentCard">
@@ -78,6 +79,9 @@
       <div id="historyTableWrap"></div>
       <h3>Comparison</h3>
       <div id="historyCompareWrap"></div>
+      <h3>Run Settings</h3>
+      <div id="historySettingsStatus" class="tournamentStatus">Select a history row and click View Settings.</div>
+      <pre id="historySettingsDump" class="historySettingsDump"></pre>
     </section>
 
     <section class="tournamentCard">

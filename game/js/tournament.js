@@ -347,7 +347,7 @@ function renderHistoryTable() {
     return;
   }
 
-  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th></tr>';
+  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th><th>Settings</th></tr>';
   const body = tournamentHistory.map(run => {
     const stats = computeRunAggregateStats(run);
     const checked = selectedHistoryIds.has(run.id) ? 'checked' : '';
@@ -366,6 +366,7 @@ function renderHistoryTable() {
         <td>${run.totalMatches}</td>
         <td>${topText}</td>
         <td>${mapLength}px, towers ${towers}</td>
+        <td><button type="button" class="historyViewSettingsBtn" data-run-id="${run.id}">View Settings</button></td>
       </tr>
     `;
   }).join('');
@@ -394,7 +395,56 @@ function renderHistoryTable() {
     });
   }
 
+  for (const viewButton of document.querySelectorAll('.historyViewSettingsBtn')) {
+    viewButton.addEventListener('click', event => {
+      const runId = event.target.getAttribute('data-run-id');
+      if (!runId) {
+        return;
+      }
+
+      const run = tournamentHistory.find(entry => entry.id === runId);
+      if (!run) {
+        return;
+      }
+
+      const dumpEl = document.getElementById('historySettingsDump');
+      const statusEl = document.getElementById('historySettingsStatus');
+      const payload = {
+        timestamp: run.timestamp,
+        source: run.source,
+        mapConfig: run.mapConfig,
+        matchesPerSide: run.matchesPerSide,
+        maxMinutes: run.maxMinutes,
+        selectedStrategies: run.selectedStrategies,
+        settingsSnapshot: run.settingsSnapshot || null,
+      };
+
+      if (dumpEl) {
+        dumpEl.textContent = JSON.stringify(payload, null, 2);
+      }
+      if (statusEl) {
+        statusEl.textContent = `Showing settings for ${formatHistoryTimestamp(run.timestamp)} (${run.source}).`;
+      }
+    });
+  }
+
   renderHistoryComparison();
+}
+
+function updateMapGeometryInfo() {
+  const mapInfoEl = document.getElementById('mapGeometryInfo');
+  if (!mapInfoEl) {
+    return;
+  }
+
+  const mapLength = clampNumber(document.getElementById('mapLengthInput').value, 2200, 600, 6000);
+  const laneInset = clampNumber(document.getElementById('laneInsetInput').value, 40, 10, 300);
+  const laneWidth = Math.max(1, mapLength - laneInset * 2);
+  const savedSettings = getSavedSettings() || {};
+  const spawnSpace = Number.isFinite(Number(savedSettings.spawnPadding)) ? Number(savedSettings.spawnPadding) : 0;
+  const spawnSlots = Number.isFinite(Number(savedSettings.spawnSlotCount)) ? Number(savedSettings.spawnSlotCount) : 7;
+
+  mapInfoEl.textContent = `Lane Edge Offset moves each lane wall inward from the map edge (left and right). Lane width = map length - 2 * edge offset = ${mapLength} - 2*${laneInset} = ${laneWidth}. Spawn Space (${spawnSpace}) is vertical spread only (Y-axis) from saved settings, so it does not change lane width. Spawn slots from saved settings: ${spawnSlots}.`;
 }
 
 function setHistoryStatus(text) {
@@ -864,10 +914,23 @@ function init() {
   )).join('');
 
   const mapProfileSelect = document.getElementById('mapProfileSelect');
-  mapProfileSelect.addEventListener('change', () => applyMapProfile(mapProfileSelect.value));
+  mapProfileSelect.addEventListener('change', () => {
+    applyMapProfile(mapProfileSelect.value);
+    updateMapGeometryInfo();
+  });
+
+  const mapLengthInput = document.getElementById('mapLengthInput');
+  const laneInsetInput = document.getElementById('laneInsetInput');
+  if (mapLengthInput) {
+    mapLengthInput.addEventListener('input', updateMapGeometryInfo);
+  }
+  if (laneInsetInput) {
+    laneInsetInput.addEventListener('input', updateMapGeometryInfo);
+  }
 
   document.getElementById('resetMapProfileBtn').addEventListener('click', () => {
     applyMapProfile(mapProfileSelect.value);
+    updateMapGeometryInfo();
   });
 
   document.getElementById('runTournamentBtn').addEventListener('click', runTournament);
@@ -877,6 +940,7 @@ function init() {
   setupHistoryControls();
 
   applyMapProfile(mapProfileSelect.value);
+  updateMapGeometryInfo();
   refreshTournamentHistory();
 
   if (!getSavedSettings()) {
