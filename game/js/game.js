@@ -76,12 +76,9 @@ const botCore = window.LegionGameBotCore;
 const gameRender = window.LegionGameRender;
 const gameControls = window.LegionGameControls;
 const gameSelection = window.LegionGameSelection;
+const gameMatchUi = window.LegionGameMatchUi;
 let timeScale = 1;
 let selectionInfoEl = null;
-let matchResultPanelEl = null;
-let matchResultTitleEl = null;
-let matchResultSummaryEl = null;
-let matchResultStatsEl = null;
 let isMatchPaused = false;
 let suppressEndPauseUntilRestart = false;
 const activeSessionId = sessionEntry?.sessionId || null;
@@ -121,6 +118,27 @@ const selection = gameSelection?.createGameSelection({
   baseCanvasHeight: BASE_CANVAS_HEIGHT,
   state,
   getSelectionInfoEl: () => selectionInfoEl,
+});
+const matchUi = gameMatchUi?.createGameMatchUi({
+  state,
+  constants,
+  simulation,
+  getTickDelta: () => tickDelta,
+  setTickDelta: value => {
+    tickDelta = value;
+  },
+  getIsMatchPaused: () => isMatchPaused,
+  setIsMatchPaused: value => {
+    isMatchPaused = value;
+  },
+  getSuppressEndPauseUntilRestart: () => suppressEndPauseUntilRestart,
+  setSuppressEndPauseUntilRestart: value => {
+    suppressEndPauseUntilRestart = value;
+  },
+  clearSelection: () => selection?.clearSelection(),
+  updateUpgradeHud,
+  updateBalanceConfigHud,
+  updateSelectionHud,
 });
 
 
@@ -448,118 +466,20 @@ if (openTournamentButton) {
   });
 }
 
-function getMatchOutcome() {
-  const leftDestroyed = state.leftBase?.isDestroyed();
-  const rightDestroyed = state.rightBase?.isDestroyed();
-
-  if (!leftDestroyed && !rightDestroyed) {
-    return null;
-  }
-
-  if (leftDestroyed && rightDestroyed) {
-    return { winner: 'draw' };
-  }
-
-  return {
-    winner: leftDestroyed ? 'right' : 'left',
-  };
-}
-
-function formatTimeFromTick(gameTick) {
-  const totalSeconds = Math.floor(gameTick / constants.TICK_RATE);
-  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  return `${minutes}:${seconds}`;
-}
-
-function renderMatchResultPanel(outcome) {
-  if (!matchResultPanelEl || !matchResultTitleEl || !matchResultSummaryEl || !matchResultStatsEl || !outcome) {
-    return;
-  }
-
-  if (outcome.winner === 'draw') {
-    matchResultTitleEl.textContent = 'Match Paused: Draw';
-    matchResultSummaryEl.textContent = 'Both bases were destroyed.';
-  } else {
-    const winnerName = outcome.winner === 'left' ? 'Blue' : 'Red';
-    matchResultTitleEl.textContent = `Match Paused: ${winnerName} Wins`;
-    matchResultSummaryEl.textContent = `${winnerName} destroyed the enemy base.`;
-  }
-
-  const upgradeSnapshot = simulation.getUpgradeSnapshot();
-  const leftPeons = state.peons.filter(peon => peon.side === 'left' && peon.isAlive()).length;
-  const rightPeons = state.peons.filter(peon => peon.side === 'right' && peon.isAlive()).length;
-
-  matchResultStatsEl.innerHTML = [
-    `<strong>Time:</strong> ${formatTimeFromTick(state.gameTime)}`,
-    `<strong>Base HP:</strong> Blue ${Math.max(0, state.leftBase.health)} / Red ${Math.max(0, state.rightBase.health)}`,
-    `<strong>Tower HP:</strong> Blue ${Math.max(0, state.leftTower.health)} / Red ${Math.max(0, state.rightTower.health)}`,
-    `<strong>HP Lost:</strong> Blue ${state.leftHpLost} / Red ${state.rightHpLost}`,
-    `<strong>Gold:</strong> Blue ${state.leftGold} / Red ${state.rightGold}`,
-    `<strong>Total Gold Earned:</strong> Blue ${state.leftTotalGold} / Red ${state.rightTotalGold}`,
-    `<strong>Alive Peons:</strong> Blue ${leftPeons} / Red ${rightPeons}`,
-    `<strong>Upgrades:</strong> Blue D${upgradeSnapshot.left.damageLevel} H${upgradeSnapshot.left.healthLevel} S${upgradeSnapshot.left.spawnLevel} | Red D${upgradeSnapshot.right.damageLevel} H${upgradeSnapshot.right.healthLevel} S${upgradeSnapshot.right.spawnLevel}`,
-  ].join('<br>');
-
-  matchResultPanelEl.hidden = false;
-}
-
 function pauseForMatchEndIfNeeded() {
-  if (suppressEndPauseUntilRestart || isMatchPaused) {
-    return;
-  }
-
-  const outcome = getMatchOutcome();
-  if (!outcome) {
-    return;
-  }
-
-  isMatchPaused = true;
-  renderMatchResultPanel(outcome);
+  matchUi?.pauseForMatchEndIfNeeded();
 }
 
 function restartMatch() {
-  simulation.initEntities();
-  tickDelta = 0;
-  isMatchPaused = false;
-  suppressEndPauseUntilRestart = false;
-  selection?.clearSelection();
-  if (matchResultPanelEl) {
-    matchResultPanelEl.hidden = true;
-  }
-  updateUpgradeHud();
-  updateBalanceConfigHud();
-  updateSelectionHud();
+  matchUi?.restartMatch();
 }
 
 function continueAfterMatchEnd() {
-  isMatchPaused = false;
-  suppressEndPauseUntilRestart = true;
-  if (matchResultPanelEl) {
-    matchResultPanelEl.hidden = true;
-  }
+  matchUi?.continueAfterMatchEnd();
 }
 
 function setupMatchControls() {
-  const restartMatchButton = document.getElementById('restartMatchBtn');
-  const continueAfterEndButton = document.getElementById('continueAfterEndBtn');
-  const restartAfterEndButton = document.getElementById('restartAfterEndBtn');
-  matchResultPanelEl = document.getElementById('matchResultPanel');
-  matchResultTitleEl = document.getElementById('matchResultTitle');
-  matchResultSummaryEl = document.getElementById('matchResultSummary');
-  matchResultStatsEl = document.getElementById('matchResultStats');
-
-  if (restartMatchButton) {
-    restartMatchButton.addEventListener('click', restartMatch);
-  }
-
-  if (continueAfterEndButton) {
-    continueAfterEndButton.addEventListener('click', continueAfterMatchEnd);
-  }
-
-  if (restartAfterEndButton) {
-    restartAfterEndButton.addEventListener('click', restartMatch);
-  }
+  matchUi?.setupMatchControls();
 }
 
 window.addEventListener('keydown', event => {
