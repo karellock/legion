@@ -21,11 +21,11 @@ Hard Rules:
 - Keep agent/workflow docs in `.github/agents/ai/`.
 - Prefer simple symmetric combat rules: visible enemy peon before structure, melee range overrides push logic.
 
-Token-Min Execution:
-- Prefer the smallest diff that solves the request.
+Execution Strategy:
+- Optimize for clarity and long-term maintainability over minimal token usage.
 - Keep changes scoped (simulation logic in `game/js/simulation.js`, bot helper logic in `game/js/game-bot-core.js`, rendering/orchestration in `game/js/game.js`).
 - For tournament logic, prefer pure helpers in `game/js/tournament-core.js` and keep DOM orchestration in `game/js/tournament.js`.
-- For balance requests, change constants first.
-- Avoid adding new files unless necessary.
+- For balance requests, change constants first, then evolve systems only when needed.
+- Add files/modules when they improve readability, testability, or separation of concerns.
 - Keep `game/tests/simulation.node.test.js`, `game/tests/game.bot.core.node.test.js`, `game/tests/tournament.core.node.test.js`, and CI coverage expectations in sync with behavior changes.
 - Before push, run `node game/tests/run-all-node-tests.js` and CI-equivalent c8 coverage gate for `simulation.js`.

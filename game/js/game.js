@@ -1,10 +1,26 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const sessionCore = window.LegionGameSessionCore;
+const sessionEntry = sessionCore?.loadSessionPayloadFromSearch(window.location.search) || null;
+const initialSessionPayload = sessionEntry?.payload || null;
+const initialMapConfig = sessionCore?.normalizeMapConfig(initialSessionPayload?.mapConfig || {}) || {
+  length: canvas.width,
+  laneInset: 100,
+  baseHp: 2000,
+  enableTowers: true,
+};
+
+canvas.width = Math.round(initialMapConfig.length || canvas.width);
+canvas.height = 600;
+
 const simulation = window.createSimulation({
   width: canvas.width,
   height: canvas.height,
-  structureDamageGraceSeconds: 20,
-  baseDamageGraceSeconds: 45,
+  laneInset: initialMapConfig.laneInset,
+  baseHp: initialMapConfig.baseHp,
+  enableTowers: initialMapConfig.enableTowers,
+  structureDamageGraceSeconds: Number(initialSessionPayload?.settingsSnapshot?.structureGraceSeconds ?? 20),
+  baseDamageGraceSeconds: Number(initialSessionPayload?.settingsSnapshot?.baseGraceSeconds ?? 45),
 });
 const { constants, layout, state } = simulation;
 const GAME_VERSION = '0.0.2';
@@ -110,6 +126,7 @@ let matchResultSummaryEl = null;
 let matchResultStatsEl = null;
 let isMatchPaused = false;
 let suppressEndPauseUntilRestart = false;
+const activeSessionId = sessionEntry?.sessionId || null;
 
 const appEl = document.getElementById('app');
 const hudToggleBtn = document.getElementById('hudToggleBtn');
@@ -225,6 +242,10 @@ function applyBaseSettings(settings = BASE_SETTINGS) {
     killBountyGold: settings.killBountyGold,
     shrineGoldPerSecond: settings.shrineGoldPerSecond,
   });
+}
+
+function shouldApplySessionSettings() {
+  return Boolean(initialSessionPayload && initialSessionPayload.settingsSnapshot && typeof initialSessionPayload.settingsSnapshot === 'object');
 }
 
 window.legionDebug = {
@@ -682,8 +703,9 @@ function updateBalanceConfigHud() {
   const goldSummary = `Gold D${constants.UPGRADE_DAMAGE_BASE_COST}x${constants.UPGRADE_DAMAGE_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_DAMAGE_COST_FORMULA)} H${constants.UPGRADE_HEALTH_BASE_COST}x${constants.UPGRADE_HEALTH_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_HEALTH_COST_FORMULA)} S${constants.UPGRADE_SPAWN_BASE_COST}x${constants.UPGRADE_SPAWN_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_SPAWN_COST_FORMULA)} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
   const structureSummary = `Struct T${constants.TOWER_DAMAGE}@${constants.TOWER_ATTACK_RATE.toFixed(2)} B${constants.BASE_DAMAGE}@${constants.BASE_ATTACK_RATE.toFixed(2)}`;
   const peonSummary = `Peon SPD${constants.PEON_SPEED.toFixed(0)} HP${constants.PEON_HP} DMG${constants.PEON_DAMAGE} AR${constants.PEON_ATTACK_RATE.toFixed(2)} Spawn ${ (constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE).toFixed(2)}s`;
+  const sessionSummary = activeSessionId ? ` | Session ${activeSessionId}` : '';
 
-  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | ${structureSummary} | ${peonSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (space ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Live T${liveTowerDamage} B${liveBaseDamage}`;
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | ${structureSummary} | ${peonSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (space ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Live T${liveTowerDamage} B${liveBaseDamage}${sessionSummary}`;
 }
 
 function setupDevControls() {
@@ -2147,8 +2169,14 @@ function setupBattleTestPanel() {
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
-  applyBaseSettings();
-  ensureVersionDefaultsSaved();
+  if (shouldApplySessionSettings()) {
+    ensureVersionDefaultsSaved();
+    applyBaseSettings(initialSessionPayload.settingsSnapshot);
+    console.log(`Loaded session payload: ${activeSessionId}`);
+  } else {
+    applyBaseSettings();
+    ensureVersionDefaultsSaved();
+  }
   simulation.setDecisionLogEnabled(true);
   setupHudCollapseControls();
   setupMatchControls();

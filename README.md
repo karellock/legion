@@ -8,10 +8,12 @@ Clean baseline for a deterministic tug-of-war prototype.
 - `game/js/simulation.js` - deterministic combat, targeting, spawning, and telemetry
 - `game/js/game.js` - game loop and rendering bootstrap
 - `game/js/game-bot-core.js` - shared deterministic bot strategy helpers for game loop orchestration
+- `game/js/game-session-core.js` - shared session payload/handoff helpers between tournament and main game
 - `game/js/tournament-core.js` - shared pure tournament helpers (strategies, map profiles, ranking/aggregate helpers)
 - `game/js/tournament.js` - tournament page orchestration, rendering, and history persistence
 - `game/tests/simulation.node.test.js` - deterministic simulation regression tests
 - `game/tests/game.bot.core.node.test.js` - deterministic tests for extracted game bot helper logic
+- `game/tests/game.session.core.node.test.js` - deterministic tests for session payload and URL handoff helpers
 - `game/tests/tournament.core.node.test.js` - deterministic tests for tournament core helper logic
 - `game/tests/run-all-node-tests.js` - convenience runner for all node-based tests
 - `game/style.css` - page and canvas styling
@@ -27,6 +29,7 @@ Tournament history notes:
 - The tournament page saves run history in browser local storage (`legion-tournament-history-v1`).
 - You can export/import run JSON files from the tournament History section.
 - Optional local folder auto-load uses `logs/tournament-history-manifest.json` with `{ "files": ["file1.json", "subdir/file2.json"] }` and attempts to fetch each file from `logs/`.
+- Tournament history can open a selected run directly in the main game by storing a session payload and navigating to `index.html?session=<id>`.
 
 ## Test
 

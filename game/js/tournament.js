@@ -5,6 +5,7 @@ const TOURNAMENT_HISTORY_KEY = 'legion-tournament-history-v1';
 const TOURNAMENT_HISTORY_MANIFEST_URL = '../logs/tournament-history-manifest.json';
 const TOURNAMENT_HISTORY_LIMIT = 300;
 const tournamentCore = typeof window !== 'undefined' ? window.LegionTournamentCore : null;
+const sessionCore = typeof window !== 'undefined' ? window.LegionGameSessionCore : null;
 
 let tournamentHistory = [];
 let selectedHistoryIds = new Set();
@@ -360,7 +361,7 @@ function renderHistoryTable() {
     return;
   }
 
-  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th><th>Settings</th></tr>';
+  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th><th>Settings</th><th>Open</th></tr>';
   const body = tournamentHistory.map(run => {
     const stats = computeRunAggregateStats(run);
     const checked = selectedHistoryIds.has(run.id) ? 'checked' : '';
@@ -380,6 +381,7 @@ function renderHistoryTable() {
         <td>${topText}</td>
         <td>${mapLength}px, towers ${towers}</td>
         <td><button type="button" class="historyViewSettingsBtn" data-run-id="${run.id}">View Settings</button></td>
+        <td><button type="button" class="historyOpenInGameBtn" data-run-id="${run.id}">Open In Main</button></td>
       </tr>
     `;
   }).join('');
@@ -438,6 +440,34 @@ function renderHistoryTable() {
       if (statusEl) {
         statusEl.textContent = `Showing settings for ${formatHistoryTimestamp(run.timestamp)} (${run.source}).`;
       }
+    });
+  }
+
+  for (const openButton of document.querySelectorAll('.historyOpenInGameBtn')) {
+    openButton.addEventListener('click', event => {
+      const runId = event.target.getAttribute('data-run-id');
+      if (!runId || !sessionCore) {
+        return;
+      }
+
+      const run = tournamentHistory.find(entry => entry.id === runId);
+      if (!run) {
+        return;
+      }
+
+      const payload = sessionCore.createGameSessionFromTournamentRun(run);
+      if (!payload) {
+        setHistoryStatus('Could not build session payload for selected run.');
+        return;
+      }
+
+      const sessionId = sessionCore.storeSessionPayload(payload, { prefix: 'tournament' });
+      if (!sessionId) {
+        setHistoryStatus('Could not store session payload for selected run.');
+        return;
+      }
+
+      window.location.href = sessionCore.buildMainGameUrlForSession(sessionId);
     });
   }
 
