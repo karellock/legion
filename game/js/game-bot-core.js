@@ -3,6 +3,23 @@
     if (strategy === 'damage-only') return 'damage';
     if (strategy === 'health-only') return 'health';
     if (strategy === 'spawn-only') return 'spawn';
+    if (strategy === 'cheapest-first') {
+      const costs = [
+        { type: 'damage', cost: Number(snapshot.nextDamageCost) },
+        { type: 'health', cost: Number(snapshot.nextHealthCost) },
+        { type: 'spawn', cost: Number(snapshot.nextSpawnCost) },
+      ].filter(entry => Number.isFinite(entry.cost));
+
+      if (costs.length === 0) {
+        return null;
+      }
+
+      costs.sort((a, b) => {
+        if (a.cost !== b.cost) return a.cost - b.cost;
+        return a.type.localeCompare(b.type);
+      });
+      return costs[0].type;
+    }
 
     if (strategy === 'balanced') {
       const levels = [

@@ -39,6 +39,19 @@ runTest('getUpgradeTypeForStrategy handles balanced and dual-track bots', () => 
   assert(dual === 'spawn', 'damage-spawn should pick lower track between damage and spawn');
 });
 
+runTest('getUpgradeTypeForStrategy supports cheapest-first bot', () => {
+  const cheapest = core.getUpgradeTypeForStrategy('cheapest-first', {
+    damageLevel: 0,
+    healthLevel: 0,
+    spawnLevel: 0,
+    nextDamageCost: 30,
+    nextHealthCost: 8,
+    nextSpawnCost: 8,
+  });
+
+  assert(cheapest === 'health', 'cheapest-first should choose the lowest next cost and break ties deterministically');
+});
+
 runTest('clampNumber enforces numeric bounds and fallback', () => {
   assert(core.clampNumber('abc', 5, 1, 10) === 5, 'invalid value should return fallback');
   assert(core.clampNumber(0, 5, 1, 10) === 1, 'below minimum should clamp to min');

@@ -41,11 +41,24 @@ runTest('dual-track bot strategy decisions are deterministic', () => {
   assert(healthSpawn === 'health', 'health-spawn ties should prefer health by <= rule');
 });
 
+runTest('cheapest-first strategy picks lowest next cost with deterministic tie-break', () => {
+  const choice = botCore.getUpgradeTypeForStrategy('cheapest-first', {
+    damageLevel: 3,
+    healthLevel: 1,
+    spawnLevel: 0,
+    nextDamageCost: 40,
+    nextHealthCost: 12,
+    nextSpawnCost: 12,
+  });
+
+  assert(choice === 'health', 'cheapest-first should pick lowest cost and break ties alphabetically');
+});
+
 runTest('nextUpgradeTypeForBot uses simulation snapshot and strategy map', () => {
   const simulation = {
     getUpgradeSnapshot() {
       return {
-        left: { damageLevel: 0, healthLevel: 1, spawnLevel: 2 },
+        left: { damageLevel: 0, healthLevel: 1, spawnLevel: 2, nextDamageCost: 20, nextHealthCost: 10, nextSpawnCost: 30 },
         right: { damageLevel: 3, healthLevel: 2, spawnLevel: 1 },
       };
     },
@@ -57,6 +70,23 @@ runTest('nextUpgradeTypeForBot uses simulation snapshot and strategy map', () =>
 
   assert(left === 'damage', 'left bot should pick damage from balanced snapshot');
   assert(right === 'spawn', 'right bot should pick spawn from damage-spawn snapshot');
+});
+
+runTest('nextUpgradeTypeForBot supports cheapest-first strategy', () => {
+  const simulation = {
+    getUpgradeSnapshot() {
+      return {
+        left: { damageLevel: 0, healthLevel: 0, spawnLevel: 0, nextDamageCost: 15, nextHealthCost: 9, nextSpawnCost: 20 },
+        right: { damageLevel: 0, healthLevel: 0, spawnLevel: 0, nextDamageCost: 30, nextHealthCost: 12, nextSpawnCost: 12 },
+      };
+    },
+  };
+
+  const left = botCore.nextUpgradeTypeForBot(simulation, 'left', { left: 'cheapest-first', right: 'none' });
+  const right = botCore.nextUpgradeTypeForBot(simulation, 'right', { left: 'none', right: 'cheapest-first' });
+
+  assert(left === 'health', 'left cheapest-first bot should choose the lowest next cost');
+  assert(right === 'health', 'right cheapest-first bot should use deterministic tie-breaks');
 });
 
 runTest('runBotPurchasesForTick only buys on 1Hz cadence', () => {
