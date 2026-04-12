@@ -15,6 +15,12 @@ Clean baseline for a deterministic tug-of-war prototype.
 ## Run
 
 Open `game/index.html` in your browser.
+Open `game/tournament.html` for round-robin AI tournament testing.
+
+Tournament history notes:
+- The tournament page saves run history in browser local storage (`legion-tournament-history-v1`).
+- You can export/import run JSON files from the tournament History section.
+- Optional local folder auto-load uses `logs/tournament-history-manifest.json` with `{ "files": ["file1.json", "subdir/file2.json"] }` and attempts to fetch each file from `logs/`.
 
 ## Test
 
@@ -27,11 +33,3 @@ Open `game/index.html` in your browser.
 - Keep gameplay design in `GDD.md` only.
 - Keep agent definitions and AI materials in `.github/agents/`.
 - Keep implementation in `game/`.
-
-## AI Workflow (Token-Min)
-
-- Default to small, surgical edits instead of broad refactors.
-- Keep simulation logic in `game/js/simulation.js` and rendering/UI in `game/js/game.js`.
-- For balance changes, edit constants first; avoid changing unrelated systems.
-- Prefer direct combat-rule fixes over geometry hacks or side-specific exceptions.
-- Keep prompts and notes concise under `.github/agents/ai/`.

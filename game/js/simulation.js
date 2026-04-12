@@ -2,38 +2,76 @@ function createSimulation(options = {}) {
   const width = options.width ?? 800;
   const height = options.height ?? 600;
 
+  function normalizeCostFormula(value) {
+    const normalized = String(value || '').toLowerCase();
+    if (normalized === 'linear' || normalized === 'hybrid') {
+      return normalized;
+    }
+
+    return 'exp';
+  }
+
+  const laneInset = Math.max(10, Math.floor(Number(options.laneInset ?? 100)));
+  const baseHp = Math.max(1, Math.floor(Number(options.baseHp ?? 2000)));
+  const towerHp = Math.max(0, Math.floor(Number(options.towerHp ?? 700)));
+  const towersEnabled = options.enableTowers !== false;
+  const spawnIntervalSeconds = Math.max(0.25, Number(options.spawnIntervalSeconds ?? 3));
+
   const constants = {
     TICK_RATE: 60,
     TICK_DURATION: 1000 / 60,
-    LANE_LEFT: 100,
-    LANE_RIGHT: width - 100,
+    LANE_LEFT: laneInset,
+    LANE_RIGHT: width - laneInset,
     LANE_TOP: 50,
     LANE_BOTTOM: height - 50,
     PEON_SPEED: 50,
     PEON_SIZE: 6,
     PEON_HP: 100,
-    PEON_DAMAGE: 10,
+    PEON_DAMAGE: 9,
     PEON_ATTACK_RATE: 1,
     PEON_ATTACK_RANGE: 16,
     PEON_VISION_RANGE: 90,
     TOWER_ATTACK_RANGE: 120,
-    TOWER_ATTACK_RATE: 0.4,
-    TOWER_DAMAGE: 20,
+    TOWER_ATTACK_RATE: Math.max(0.05, Number(options.towerAttackRate ?? 0.5)),
+    TOWER_DAMAGE: Math.max(0, Number(options.towerDamage ?? 26)),
     TOWER_VISION_RANGE: 150,
+    TOWER_HP: towerHp,
+    BASE_HP: baseHp,
+    ENABLE_TOWERS: towersEnabled,
     BASE_ATTACK_RANGE: 160,
-    BASE_ATTACK_RATE: 0.33,
-    BASE_DAMAGE: 10,
+    BASE_ATTACK_RATE: Math.max(0.05, Number(options.baseAttackRate ?? 0.4)),
+    BASE_DAMAGE: Math.max(0, Number(options.baseDamage ?? 14)),
     BASE_VISION_RANGE: 200,
     KILL_BOUNTY_GOLD: 10,
     SHRINE_GOLD_PER_SECOND: 2,
-    UPGRADE_BASE_COST: 50,
-    UPGRADE_DAMAGE_PER_LEVEL: 5,
-    UPGRADE_HEALTH_PER_LEVEL: 50,
+    UPGRADE_BASE_COST: 20,
+    UPGRADE_DAMAGE_PER_LEVEL: 1,
+    UPGRADE_HEALTH_PER_LEVEL: 5,
     UPGRADE_SPAWN_COUNT_PER_LEVEL: 1,
-    SPAWN_INTERVAL_TICKS: Math.floor(60 * 3),
+    UPGRADE_DAMAGE_BASE_COST: Math.max(0, Math.round(Number(options.upgradeDamageBaseCost ?? 20))),
+    UPGRADE_HEALTH_BASE_COST: Math.max(0, Math.round(Number(options.upgradeHealthBaseCost ?? 20))),
+    UPGRADE_SPAWN_BASE_COST: Math.max(0, Math.round(Number(options.upgradeSpawnBaseCost ?? 20))),
+    UPGRADE_DAMAGE_COST_MULTIPLIER: 1,
+    UPGRADE_HEALTH_COST_MULTIPLIER: 1,
+    UPGRADE_SPAWN_COST_MULTIPLIER: 1,
+    UPGRADE_DAMAGE_COST_GROWTH: Math.max(1, Number(options.upgradeDamageCostGrowth ?? 1.5)),
+    UPGRADE_HEALTH_COST_GROWTH: Math.max(1, Number(options.upgradeHealthCostGrowth ?? 1.5)),
+    UPGRADE_SPAWN_COST_GROWTH: Math.max(1, Number(options.upgradeSpawnCostGrowth ?? 1.5)),
+    UPGRADE_DAMAGE_COST_FORMULA: normalizeCostFormula(options.upgradeDamageCostFormula ?? 'exp'),
+    UPGRADE_HEALTH_COST_FORMULA: normalizeCostFormula(options.upgradeHealthCostFormula ?? 'exp'),
+    UPGRADE_SPAWN_COST_FORMULA: normalizeCostFormula(options.upgradeSpawnCostFormula ?? 'exp'),
+    UPGRADE_COST_GROWTH: Math.max(1, Number(options.upgradeCostGrowth ?? 1.5)),
+    STRUCTURE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.structureDamageGraceSeconds ?? 0) * 60)),
+    BASE_DAMAGE_GRACE_TICKS: Math.max(0, Math.floor((options.baseDamageGraceSeconds ?? 0) * 60)),
+    TOWER_DAMAGE_PER_MINUTE: Math.max(0, Number(options.towerDamagePerMinute ?? 1.2)),
+    BASE_DAMAGE_PER_MINUTE: Math.max(0, Number(options.baseDamagePerMinute ?? 0.6)),
+    SPAWN_INTERVAL_TICKS: Math.max(1, Math.floor(60 * spawnIntervalSeconds)),
     SPAWN_COUNT: options.spawnCount ?? 1,
-    SPAWN_SLOT_PADDING: 40,
+    SPAWN_SLOT_PADDING: Math.floor((height - 100) / 2),
     SPAWN_SLOT_COUNT: 7,
+    HIT_FLASH_TOTAL_TICKS: 18,
+    HIT_FLASH_HOLD_TICKS: 3,
+    SLASH_EFFECT_TTL: 10,
   };
 
   class Peon {
@@ -53,10 +91,16 @@ function createSimulation(options = {}) {
       this.visionRange = constants.PEON_VISION_RANGE;
       this.damage = stats.damage ?? constants.PEON_DAMAGE;
       this.target = null;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
       this.ticksSinceLastAttack++;
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     move() {
@@ -86,6 +130,7 @@ function createSimulation(options = {}) {
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isAlive() {
@@ -137,6 +182,9 @@ function createSimulation(options = {}) {
       this.lastShotX = null;
       this.lastShotY = null;
       this.shotFlashTicks = 0;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
@@ -149,10 +197,15 @@ function createSimulation(options = {}) {
           this.lastShotY = null;
         }
       }
+
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isDestroyed() {
@@ -215,6 +268,9 @@ function createSimulation(options = {}) {
       this.lastShotX = null;
       this.lastShotY = null;
       this.shotFlashTicks = 0;
+      this.hitFlashTicks = 0;
+      this.hitFlashMaxTicks = constants.HIT_FLASH_TOTAL_TICKS;
+      this.hitFlashHoldTicks = constants.HIT_FLASH_HOLD_TICKS;
     }
 
     update() {
@@ -227,10 +283,15 @@ function createSimulation(options = {}) {
           this.lastShotY = null;
         }
       }
+
+      if (this.hitFlashTicks > 0) {
+        this.hitFlashTicks--;
+      }
     }
 
     takeDamage(damage) {
       this.health = Math.max(0, this.health - damage);
+      this.hitFlashTicks = this.hitFlashMaxTicks;
     }
 
     isDestroyed() {
@@ -293,6 +354,9 @@ function createSimulation(options = {}) {
     rightAttacksLanded: 0,
     leftGold: 0,
     rightGold: 0,
+    leftTotalGold: 0,
+    rightTotalGold: 0,
+    damagePopups: [],
     shrineControl: 'neutral',
     shrineTickCounter: 0,
     leftUpgrades: null,
@@ -311,26 +375,328 @@ function createSimulation(options = {}) {
   }
 
   function createSpawnSlots() {
-    const laneY = height / 2;
-    const half = Math.floor(constants.SPAWN_SLOT_COUNT / 2);
-    const step = 12;
+    const laneHeight = constants.LANE_BOTTOM - constants.LANE_TOP;
+    const laneCenterY = (constants.LANE_TOP + constants.LANE_BOTTOM) / 2;
+    const maxSpread = Math.max(0, Math.floor(laneHeight / 2) - 2);
+    const clampedSpread = Math.max(0, Math.min(constants.SPAWN_SLOT_PADDING, maxSpread));
+    const usableTop = laneCenterY - clampedSpread;
+    const usableBottom = laneCenterY + clampedSpread;
+    const slotCount = Math.max(2, constants.SPAWN_SLOT_COUNT);
+    const step = (usableBottom - usableTop) / (slotCount - 1);
     const slots = [];
 
-    for (let index = 0; index < constants.SPAWN_SLOT_COUNT; index++) {
-      slots.push(laneY + (index - half) * step);
+    for (let index = 0; index < slotCount; index++) {
+      slots.push(usableTop + index * step);
     }
 
     return slots;
   }
 
-  const spawnSlots = createSpawnSlots();
+  const spawnSlots = [];
+
+  function rebuildSpawnSlots() {
+    const nextSlots = createSpawnSlots();
+    spawnSlots.splice(0, spawnSlots.length, ...nextSlots);
+
+    if (spawnSlots.length > 0) {
+      state.leftSpawnSlotIndex = state.leftSpawnSlotIndex % spawnSlots.length;
+      state.rightSpawnSlotIndex = state.rightSpawnSlotIndex % spawnSlots.length;
+    }
+
+    return spawnSlots;
+  }
+
+  function setSpawnLayout(config = {}) {
+    const nextPadding = Number(config.padding);
+    const nextSlotCount = Number(config.slotCount);
+
+    if (Number.isFinite(nextPadding)) {
+      constants.SPAWN_SLOT_PADDING = Math.max(0, Math.floor(nextPadding));
+    }
+
+    if (Number.isFinite(nextSlotCount)) {
+      constants.SPAWN_SLOT_COUNT = Math.max(2, Math.floor(nextSlotCount));
+    }
+
+    rebuildSpawnSlots();
+
+    return {
+      padding: constants.SPAWN_SLOT_PADDING,
+      slotCount: constants.SPAWN_SLOT_COUNT,
+      slots: spawnSlots.slice(),
+    };
+  }
+
+  function setSpawnTiming(config = {}) {
+    const nextSpawnIntervalSeconds = Number(config.spawnIntervalSeconds);
+    if (Number.isFinite(nextSpawnIntervalSeconds)) {
+      const clampedSeconds = Math.max(0.25, nextSpawnIntervalSeconds);
+      constants.SPAWN_INTERVAL_TICKS = Math.max(1, Math.floor(clampedSeconds * constants.TICK_RATE));
+    }
+
+    return {
+      spawnIntervalSeconds: constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE,
+      spawnIntervalTicks: constants.SPAWN_INTERVAL_TICKS,
+    };
+  }
+
+  function setPeonValues(config = {}) {
+    const nextPeonSpeed = Number(config.peonSpeed);
+    const nextPeonHp = Number(config.peonHp);
+    const nextPeonDamage = Number(config.peonDamage);
+    const nextPeonAttackRate = Number(config.peonAttackRate);
+
+    const previousPeonHp = constants.PEON_HP;
+
+    if (Number.isFinite(nextPeonSpeed)) {
+      constants.PEON_SPEED = Math.max(1, nextPeonSpeed);
+    }
+
+    if (Number.isFinite(nextPeonHp)) {
+      constants.PEON_HP = Math.max(1, Math.round(nextPeonHp));
+    }
+
+    if (Number.isFinite(nextPeonDamage)) {
+      constants.PEON_DAMAGE = Math.max(0, nextPeonDamage);
+    }
+
+    if (Number.isFinite(nextPeonAttackRate)) {
+      constants.PEON_ATTACK_RATE = Math.max(0.05, nextPeonAttackRate);
+    }
+
+    for (const peon of state.peons) {
+      if (!peon.isAlive()) {
+        continue;
+      }
+
+      peon.velocityX = peon.side === 'left' ? constants.PEON_SPEED : -constants.PEON_SPEED;
+      const nextAttackCooldown = constants.TICK_RATE / constants.PEON_ATTACK_RATE;
+      const previousAttackCooldown = Math.max(1, peon.attackCooldown || 1);
+      const attackProgress = Math.max(0, peon.ticksSinceLastAttack) / previousAttackCooldown;
+      peon.attackCooldown = nextAttackCooldown;
+      peon.ticksSinceLastAttack = Math.min(nextAttackCooldown, attackProgress * nextAttackCooldown);
+
+      const hpScale = previousPeonHp > 0 ? peon.health / peon.maxHealth : 1;
+      const upgrades = getUpgradesForSide(peon.side);
+      peon.maxHealth = constants.PEON_HP + upgrades.healthLevel * constants.UPGRADE_HEALTH_PER_LEVEL;
+      peon.health = Math.max(1, Math.min(peon.maxHealth, Math.round(peon.maxHealth * hpScale)));
+      peon.damage = constants.PEON_DAMAGE + upgrades.damageLevel * constants.UPGRADE_DAMAGE_PER_LEVEL;
+    }
+
+    return {
+      peonSpeed: constants.PEON_SPEED,
+      peonHp: constants.PEON_HP,
+      peonDamage: constants.PEON_DAMAGE,
+      peonAttackRate: constants.PEON_ATTACK_RATE,
+    };
+  }
+
+  function setStructureDamageScaling(config = {}) {
+    const nextTowerPerMinute = Number(config.towerDamagePerMinute);
+    const nextBasePerMinute = Number(config.baseDamagePerMinute);
+
+    if (Number.isFinite(nextTowerPerMinute)) {
+      constants.TOWER_DAMAGE_PER_MINUTE = Math.max(0, nextTowerPerMinute);
+    }
+
+    if (Number.isFinite(nextBasePerMinute)) {
+      constants.BASE_DAMAGE_PER_MINUTE = Math.max(0, nextBasePerMinute);
+    }
+
+    updateStructureDamageByTime();
+
+    return {
+      towerDamagePerMinute: constants.TOWER_DAMAGE_PER_MINUTE,
+      baseDamagePerMinute: constants.BASE_DAMAGE_PER_MINUTE,
+    };
+  }
+
+  function updateStructureAttackCooldowns() {
+    const structures = [
+      [state.leftTower, constants.TOWER_ATTACK_RATE],
+      [state.rightTower, constants.TOWER_ATTACK_RATE],
+      [state.leftBase, constants.BASE_ATTACK_RATE],
+      [state.rightBase, constants.BASE_ATTACK_RATE],
+    ];
+
+    for (const [structure, rate] of structures) {
+      if (!structure) {
+        continue;
+      }
+
+      const previousCooldown = Math.max(1, structure.attackCooldown || 1);
+      const progress = Math.max(0, structure.ticksSinceLastAttack) / previousCooldown;
+      structure.attackCooldown = constants.TICK_RATE / Math.max(0.05, rate);
+      structure.ticksSinceLastAttack = Math.min(structure.attackCooldown, progress * structure.attackCooldown);
+    }
+  }
+
+  function setStructureCombatValues(config = {}) {
+    const nextTowerDamage = Number(config.towerDamage);
+    const nextBaseDamage = Number(config.baseDamage);
+    const nextTowerAttackRate = Number(config.towerAttackRate);
+    const nextBaseAttackRate = Number(config.baseAttackRate);
+
+    if (Number.isFinite(nextTowerDamage)) {
+      constants.TOWER_DAMAGE = Math.max(0, nextTowerDamage);
+    }
+
+    if (Number.isFinite(nextBaseDamage)) {
+      constants.BASE_DAMAGE = Math.max(0, nextBaseDamage);
+    }
+
+    if (Number.isFinite(nextTowerAttackRate)) {
+      constants.TOWER_ATTACK_RATE = Math.max(0.05, nextTowerAttackRate);
+    }
+
+    if (Number.isFinite(nextBaseAttackRate)) {
+      constants.BASE_ATTACK_RATE = Math.max(0.05, nextBaseAttackRate);
+    }
+
+    updateStructureAttackCooldowns();
+    updateStructureDamageByTime();
+
+    return {
+      towerDamage: constants.TOWER_DAMAGE,
+      baseDamage: constants.BASE_DAMAGE,
+      towerAttackRate: constants.TOWER_ATTACK_RATE,
+      baseAttackRate: constants.BASE_ATTACK_RATE,
+    };
+  }
+
+  function setProtectionWindows(config = {}) {
+    const nextStructureDamageGraceSeconds = Number(config.structureDamageGraceSeconds);
+    const nextBaseDamageGraceSeconds = Number(config.baseDamageGraceSeconds);
+
+    if (Number.isFinite(nextStructureDamageGraceSeconds)) {
+      constants.STRUCTURE_DAMAGE_GRACE_TICKS = Math.max(0, Math.floor(nextStructureDamageGraceSeconds * constants.TICK_RATE));
+    }
+
+    if (Number.isFinite(nextBaseDamageGraceSeconds)) {
+      constants.BASE_DAMAGE_GRACE_TICKS = Math.max(0, Math.floor(nextBaseDamageGraceSeconds * constants.TICK_RATE));
+    }
+
+    return {
+      structureDamageGraceSeconds: constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+      baseDamageGraceSeconds: constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+    };
+  }
+
+  function setEconomyValues(config = {}) {
+    const nextKillBountyGold = Number(config.killBountyGold);
+    const nextShrineGoldPerSecond = Number(config.shrineGoldPerSecond);
+    const nextUpgradeBaseCost = Number(config.upgradeBaseCost);
+    const nextUpgradeCostGrowth = Number(config.upgradeCostGrowth);
+    const nextUpgradeDamageBaseCost = Number(config.upgradeDamageBaseCost);
+    const nextUpgradeHealthBaseCost = Number(config.upgradeHealthBaseCost);
+    const nextUpgradeSpawnBaseCost = Number(config.upgradeSpawnBaseCost);
+    const nextUpgradeDamageCostGrowth = Number(config.upgradeDamageCostGrowth);
+    const nextUpgradeHealthCostGrowth = Number(config.upgradeHealthCostGrowth);
+    const nextUpgradeSpawnCostGrowth = Number(config.upgradeSpawnCostGrowth);
+    const nextUpgradeDamageCostFormula = config.upgradeDamageCostFormula;
+    const nextUpgradeHealthCostFormula = config.upgradeHealthCostFormula;
+    const nextUpgradeSpawnCostFormula = config.upgradeSpawnCostFormula;
+
+    if (Number.isFinite(nextKillBountyGold)) {
+      constants.KILL_BOUNTY_GOLD = Math.max(0, Math.round(nextKillBountyGold));
+    }
+
+    if (Number.isFinite(nextShrineGoldPerSecond)) {
+      constants.SHRINE_GOLD_PER_SECOND = Math.max(0, Math.round(nextShrineGoldPerSecond));
+    }
+
+    if (Number.isFinite(nextUpgradeBaseCost)) {
+      constants.UPGRADE_BASE_COST = Math.max(0, Math.round(nextUpgradeBaseCost));
+      constants.UPGRADE_DAMAGE_BASE_COST = constants.UPGRADE_BASE_COST;
+      constants.UPGRADE_HEALTH_BASE_COST = constants.UPGRADE_BASE_COST;
+      constants.UPGRADE_SPAWN_BASE_COST = constants.UPGRADE_BASE_COST;
+    }
+
+    if (Number.isFinite(nextUpgradeCostGrowth)) {
+      constants.UPGRADE_COST_GROWTH = Math.max(1, nextUpgradeCostGrowth);
+      constants.UPGRADE_DAMAGE_COST_GROWTH = constants.UPGRADE_COST_GROWTH;
+      constants.UPGRADE_HEALTH_COST_GROWTH = constants.UPGRADE_COST_GROWTH;
+      constants.UPGRADE_SPAWN_COST_GROWTH = constants.UPGRADE_COST_GROWTH;
+      constants.UPGRADE_DAMAGE_COST_FORMULA = 'exp';
+      constants.UPGRADE_HEALTH_COST_FORMULA = 'exp';
+      constants.UPGRADE_SPAWN_COST_FORMULA = 'exp';
+    }
+
+    if (Number.isFinite(nextUpgradeDamageBaseCost)) {
+      constants.UPGRADE_DAMAGE_BASE_COST = Math.max(0, Math.round(nextUpgradeDamageBaseCost));
+    }
+
+    if (Number.isFinite(nextUpgradeHealthBaseCost)) {
+      constants.UPGRADE_HEALTH_BASE_COST = Math.max(0, Math.round(nextUpgradeHealthBaseCost));
+    }
+
+    if (Number.isFinite(nextUpgradeSpawnBaseCost)) {
+      constants.UPGRADE_SPAWN_BASE_COST = Math.max(0, Math.round(nextUpgradeSpawnBaseCost));
+    }
+
+    if (Number.isFinite(nextUpgradeDamageCostGrowth)) {
+      constants.UPGRADE_DAMAGE_COST_GROWTH = Math.max(1, nextUpgradeDamageCostGrowth);
+    }
+
+    if (Number.isFinite(nextUpgradeHealthCostGrowth)) {
+      constants.UPGRADE_HEALTH_COST_GROWTH = Math.max(1, nextUpgradeHealthCostGrowth);
+    }
+
+    if (Number.isFinite(nextUpgradeSpawnCostGrowth)) {
+      constants.UPGRADE_SPAWN_COST_GROWTH = Math.max(1, nextUpgradeSpawnCostGrowth);
+    }
+
+    if (typeof nextUpgradeDamageCostFormula === 'string') {
+      constants.UPGRADE_DAMAGE_COST_FORMULA = normalizeCostFormula(nextUpgradeDamageCostFormula);
+    }
+
+    if (typeof nextUpgradeHealthCostFormula === 'string') {
+      constants.UPGRADE_HEALTH_COST_FORMULA = normalizeCostFormula(nextUpgradeHealthCostFormula);
+    }
+
+    if (typeof nextUpgradeSpawnCostFormula === 'string') {
+      constants.UPGRADE_SPAWN_COST_FORMULA = normalizeCostFormula(nextUpgradeSpawnCostFormula);
+    }
+
+    return {
+      killBountyGold: constants.KILL_BOUNTY_GOLD,
+      shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
+      upgradeBaseCost: constants.UPGRADE_BASE_COST,
+      upgradeCostGrowth: constants.UPGRADE_COST_GROWTH,
+      upgradeDamageBaseCost: constants.UPGRADE_DAMAGE_BASE_COST,
+      upgradeHealthBaseCost: constants.UPGRADE_HEALTH_BASE_COST,
+      upgradeSpawnBaseCost: constants.UPGRADE_SPAWN_BASE_COST,
+      upgradeDamageCostGrowth: constants.UPGRADE_DAMAGE_COST_GROWTH,
+      upgradeHealthCostGrowth: constants.UPGRADE_HEALTH_COST_GROWTH,
+      upgradeSpawnCostGrowth: constants.UPGRADE_SPAWN_COST_GROWTH,
+      upgradeDamageCostFormula: constants.UPGRADE_DAMAGE_COST_FORMULA,
+      upgradeHealthCostFormula: constants.UPGRADE_HEALTH_COST_FORMULA,
+      upgradeSpawnCostFormula: constants.UPGRADE_SPAWN_COST_FORMULA,
+    };
+  }
+
+  function currentElapsedMinutes() {
+    return state.gameTime / (constants.TICK_RATE * 60);
+  }
+
+  function updateStructureDamageByTime() {
+    const elapsedMinutes = currentElapsedMinutes();
+    const towerDamage = constants.TOWER_DAMAGE + elapsedMinutes * constants.TOWER_DAMAGE_PER_MINUTE;
+    const baseDamage = constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE;
+
+    state.leftTower.damage = towerDamage;
+    state.rightTower.damage = towerDamage;
+    state.leftBase.damage = baseDamage;
+    state.rightBase.damage = baseDamage;
+  }
 
   function initEntities() {
     state.nextEntityId = 1;
-    state.leftBase = new Base('left', 2000, 2000);
-    state.rightBase = new Base('right', 2000, 2000);
-    state.leftTower = new Tower('left', 500, 500);
-    state.rightTower = new Tower('right', 500, 500);
+    state.leftBase = new Base('left', constants.BASE_HP, constants.BASE_HP);
+    state.rightBase = new Base('right', constants.BASE_HP, constants.BASE_HP);
+    const initialTowerHp = constants.ENABLE_TOWERS ? constants.TOWER_HP : 0;
+    state.leftTower = new Tower('left', initialTowerHp, constants.TOWER_HP);
+    state.rightTower = new Tower('right', initialTowerHp, constants.TOWER_HP);
     state.peons = [];
     state.leftSpawnTimer = 0;
     state.rightSpawnTimer = 0;
@@ -344,11 +710,16 @@ function createSimulation(options = {}) {
     state.rightAttacksLanded = 0;
     state.leftGold = 0;
     state.rightGold = 0;
+    state.leftTotalGold = 0;
+    state.rightTotalGold = 0;
+    state.damagePopups = [];
     state.shrineControl = 'neutral';
     state.shrineTickCounter = 0;
     state.leftUpgrades = createUpgradeState();
     state.rightUpgrades = createUpgradeState();
     state.decisionLog = [];
+    rebuildSpawnSlots();
+    updateStructureDamageByTime();
   }
 
   function getUpgradesForSide(side) {
@@ -378,8 +749,44 @@ function createSimulation(options = {}) {
     return true;
   }
 
-  function getUpgradeCost(level) {
-    return constants.UPGRADE_BASE_COST * (2 ** level);
+  function getUpgradeCost(level, type = 'generic') {
+    const multiplierByType = {
+      damage: constants.UPGRADE_DAMAGE_COST_MULTIPLIER,
+      health: constants.UPGRADE_HEALTH_COST_MULTIPLIER,
+      spawn: constants.UPGRADE_SPAWN_COST_MULTIPLIER,
+    };
+    const baseByType = {
+      damage: constants.UPGRADE_DAMAGE_BASE_COST,
+      health: constants.UPGRADE_HEALTH_BASE_COST,
+      spawn: constants.UPGRADE_SPAWN_BASE_COST,
+    };
+    const growthByType = {
+      damage: constants.UPGRADE_DAMAGE_COST_GROWTH,
+      health: constants.UPGRADE_HEALTH_COST_GROWTH,
+      spawn: constants.UPGRADE_SPAWN_COST_GROWTH,
+    };
+    const formulaByType = {
+      damage: constants.UPGRADE_DAMAGE_COST_FORMULA,
+      health: constants.UPGRADE_HEALTH_COST_FORMULA,
+      spawn: constants.UPGRADE_SPAWN_COST_FORMULA,
+    };
+
+    const multiplier = multiplierByType[type] ?? 1;
+    const baseCost = baseByType[type] ?? constants.UPGRADE_BASE_COST;
+    const growth = growthByType[type] ?? constants.UPGRADE_COST_GROWTH;
+    const formula = formulaByType[type] ?? 'exp';
+    const linearValue = baseCost * multiplier * (1 + (growth - 1) * level);
+    const exponentialValue = baseCost * multiplier * (growth ** level);
+
+    if (formula === 'linear') {
+      return Math.round(linearValue);
+    }
+
+    if (formula === 'hybrid') {
+      return Math.round((linearValue + exponentialValue) / 2);
+    }
+
+    return Math.round(exponentialValue);
   }
 
   function getPeonStatsForSide(side) {
@@ -404,17 +811,17 @@ function createSimulation(options = {}) {
         damageLevel: left.damageLevel,
         healthLevel: left.healthLevel,
         spawnLevel: left.spawnLevel,
-        nextDamageCost: getUpgradeCost(left.damageLevel),
-        nextHealthCost: getUpgradeCost(left.healthLevel),
-        nextSpawnCost: getUpgradeCost(left.spawnLevel),
+        nextDamageCost: getUpgradeCost(left.damageLevel, 'damage'),
+        nextHealthCost: getUpgradeCost(left.healthLevel, 'health'),
+        nextSpawnCost: getUpgradeCost(left.spawnLevel, 'spawn'),
       },
       right: {
         damageLevel: right.damageLevel,
         healthLevel: right.healthLevel,
         spawnLevel: right.spawnLevel,
-        nextDamageCost: getUpgradeCost(right.damageLevel),
-        nextHealthCost: getUpgradeCost(right.healthLevel),
-        nextSpawnCost: getUpgradeCost(right.spawnLevel),
+        nextDamageCost: getUpgradeCost(right.damageLevel, 'damage'),
+        nextHealthCost: getUpgradeCost(right.healthLevel, 'health'),
+        nextSpawnCost: getUpgradeCost(right.spawnLevel, 'spawn'),
       },
     };
   }
@@ -436,7 +843,7 @@ function createSimulation(options = {}) {
     }
 
     const currentLevel = upgrades[levelKey];
-    const cost = getUpgradeCost(currentLevel);
+    const cost = getUpgradeCost(currentLevel, type);
     if (!spendGold(side, cost)) {
       return { ok: false, reason: 'insufficient-gold', cost, currentGold: getGoldForSide(side) };
     }
@@ -468,8 +875,10 @@ function createSimulation(options = {}) {
 
     if (side === 'left') {
       state.leftGold += amount;
+      state.leftTotalGold += amount;
     } else if (side === 'right') {
       state.rightGold += amount;
+      state.rightTotalGold += amount;
     }
   }
 
@@ -551,17 +960,14 @@ function createSimulation(options = {}) {
   }
 
   function addSlashEffect(attacker, target) {
-    const midX = (attacker.x + target.x) * 0.5;
-    const midY = (attacker.y + target.y) * 0.5;
-    const angle = Math.atan2(target.y - attacker.y, target.x - attacker.x);
-
     state.slashEffects.push({
-      x: midX,
-      y: midY,
-      angle,
+      fromX: attacker.x,
+      fromY: attacker.y,
+      toX: target.x,
+      toY: target.y,
       side: attacker.side,
-      ttl: 10,
-      maxTtl: 10,
+      ttl: constants.SLASH_EFFECT_TTL,
+      maxTtl: constants.SLASH_EFFECT_TTL,
     });
   }
 
@@ -712,11 +1118,19 @@ function createSimulation(options = {}) {
       return null;
     }
 
+    const getRemainingHealth = enemy => enemy.health - (plannedDamage.get(enemy) || 0);
+    const hasOtherViableTarget = currentEnemy => inRangeEnemies.some(enemy => enemy !== currentEnemy && getRemainingHealth(enemy) > 0);
+
     const preferredRemaining = preferredTarget
-      ? preferredTarget.health - (plannedDamage.get(preferredTarget) || 0)
+      ? getRemainingHealth(preferredTarget)
       : 0;
 
-    if (preferredTarget && inRangeEnemies.includes(preferredTarget) && preferredRemaining > 0) {
+    if (
+      preferredTarget
+      && inRangeEnemies.includes(preferredTarget)
+      && preferredRemaining > 0
+      && (preferredRemaining > peon.damage || !hasOtherViableTarget(preferredTarget))
+    ) {
       return preferredTarget;
     }
 
@@ -726,14 +1140,16 @@ function createSimulation(options = {}) {
 
     // First priority: if we can finish an enemy now, take the lowest HP executable kill.
     const killCandidates = closeCandidates.filter(enemy => {
-      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
-      return remainingHealth > 0 && remainingHealth <= peon.damage;
+      const remainingHealth = getRemainingHealth(enemy);
+      return remainingHealth > 0
+        && remainingHealth <= peon.damage
+        && ((plannedDamage.get(enemy) || 0) === 0 || !hasOtherViableTarget(enemy));
     });
 
     if (killCandidates.length > 0) {
       killCandidates.sort((a, b) => {
-        const remainingA = a.health - (plannedDamage.get(a) || 0);
-        const remainingB = b.health - (plannedDamage.get(b) || 0);
+        const remainingA = getRemainingHealth(a);
+        const remainingB = getRemainingHealth(b);
         if (remainingA !== remainingB) {
           return remainingA - remainingB;
         }
@@ -750,8 +1166,8 @@ function createSimulation(options = {}) {
     }
 
     closeCandidates.sort((a, b) => {
-      const remainingA = a.health - (plannedDamage.get(a) || 0);
-      const remainingB = b.health - (plannedDamage.get(b) || 0);
+      const remainingA = getRemainingHealth(a);
+      const remainingB = getRemainingHealth(b);
       if (remainingA !== remainingB) {
         return remainingA - remainingB;
       }
@@ -764,8 +1180,18 @@ function createSimulation(options = {}) {
       return a.id - b.id;
     });
 
+    const nonOverkillCandidates = closeCandidates.filter(enemy => {
+      const remainingHealth = getRemainingHealth(enemy);
+      return remainingHealth > 0
+        && ((plannedDamage.get(enemy) || 0) === 0 || !hasOtherViableTarget(enemy));
+    });
+
+    if (nonOverkillCandidates.length > 0) {
+      return nonOverkillCandidates[0];
+    }
+
     for (const enemy of closeCandidates) {
-      const remainingHealth = enemy.health - (plannedDamage.get(enemy) || 0);
+      const remainingHealth = getRemainingHealth(enemy);
       if (remainingHealth > 0) {
         return enemy;
       }
@@ -805,9 +1231,18 @@ function createSimulation(options = {}) {
     }
 
     for (const [target, damage] of damageByTarget.entries()) {
+      const targetKind = entityType(target);
+      const structureProtected = targetKind === 'tower' && state.gameTime < constants.STRUCTURE_DAMAGE_GRACE_TICKS;
+      const baseProtected = targetKind === 'base' && state.gameTime < constants.BASE_DAMAGE_GRACE_TICKS;
+      const effectiveDamage = structureProtected || baseProtected ? 0 : damage;
+
       const healthBefore = target.health;
-      target.takeDamage(damage);
+      target.takeDamage(effectiveDamage);
       const healthLost = Math.max(0, healthBefore - target.health);
+
+      if (effectiveDamage > 0) {
+        state.damagePopups.push({ x: target.x, y: target.y, amount: effectiveDamage, targetSide: target.side });
+      }
 
       if (target.side === 'left') {
         state.leftHpLost += healthLost;
@@ -823,6 +1258,7 @@ function createSimulation(options = {}) {
   }
 
   function tick() {
+    state.damagePopups = [];
     for (const slash of state.slashEffects) {
       slash.ttl--;
     }
@@ -845,6 +1281,7 @@ function createSimulation(options = {}) {
     state.rightBase.update();
     state.leftTower.update();
     state.rightTower.update();
+    updateStructureDamageByTime();
 
     // Clean up dead/off-lane peons and log death events before tick-summary
     const peonsBeforeCleanup = new Map(state.peons.map(p => [p.id, p]));
@@ -1083,6 +1520,13 @@ function createSimulation(options = {}) {
     state,
     tick,
     spawnUnits,
+    setSpawnLayout,
+    setSpawnTiming,
+    setPeonValues,
+    setStructureDamageScaling,
+    setStructureCombatValues,
+    setProtectionWindows,
+    setEconomyValues,
     buyUpgrade,
     getUpgradeSnapshot,
     initEntities,

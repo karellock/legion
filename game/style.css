@@ -7,41 +7,406 @@ body {
   height: 100%;
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
-  background: #121212;
+  background: radial-gradient(circle at top, #23252d 0%, #111217 48%, #0a0b0e 100%);
   color: #f5f5f5;
 }
 
 #app {
   height: 100vh;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(392px, 476px) minmax(0, 1fr);
   padding: 12px;
+  gap: 12px;
+  transition: grid-template-columns 0.2s ease;
+}
+
+#app.app--hud-collapsed {
+  grid-template-columns: 60px minmax(0, 1fr);
+}
+
+#hud {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(28, 30, 37, 0.96) 0%, rgba(18, 20, 26, 0.96) 100%);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+}
+
+.hudHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
 }
 
 #hud h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
 }
 
-#hud p {
-  margin: 4px 0 0;
-  color: #b7b7b7;
-  font-size: 13px;
-}
-
-#downloadLogsBtn {
-  margin-top: 8px;
-  padding: 6px 10px;
-  border: 1px solid #3f3f3f;
-  background: #1f1f1f;
-  color: #f5f5f5;
-  border-radius: 4px;
+#hudToggleBtn {
+  min-width: 46px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #f3f6ff;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #3b4151 0%, #252a36 100%);
   cursor: pointer;
 }
 
+#hudToggleBtn:hover {
+  background: linear-gradient(180deg, #464d5f 0%, #2b313e 100%);
+}
+
+#app.app--hud-collapsed #hud {
+  overflow: hidden;
+  padding: 10px 8px;
+}
+
+#app.app--hud-collapsed #hud > :not(.hudHeader) {
+  display: none;
+}
+
+#app.app--hud-collapsed .hudHeader {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+#app.app--hud-collapsed .hudHeader h1 {
+  display: none;
+}
+
+#app.app--hud-collapsed #hudToggleBtn {
+  width: 42px;
+  min-width: 42px;
+}
+
+#hud p {
+  margin: 4px 0 8px;
+  color: #b7b7b7;
+  font-size: 12px;
+}
+
+#balanceConfig {
+  margin: 2px 0 8px;
+  color: #9fb4d6;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+#downloadLogsBtn {
+  width: 100%;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #2b2f39 0%, #1c1f27 100%);
+  color: #f5f5f5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 #downloadLogsBtn:hover {
-  background: #2a2a2a;
+  background: linear-gradient(180deg, #333847 0%, #21252d 100%);
+}
+
+#openTournamentBtn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #3a2f4b 0%, #2a2038 100%);
+  color: #f5f5f5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#openTournamentBtn:hover {
+  background: linear-gradient(180deg, #47395d 0%, #322645 100%);
+}
+
+#matchControls {
+  margin: 8px 0 6px;
+}
+
+#restartMatchBtn {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #365139 0%, #233626 100%);
+  color: #f5f5f5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#restartMatchBtn:hover {
+  background: linear-gradient(180deg, #416346 0%, #2b432f 100%);
+}
+
+#matchResultPanel {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(26, 28, 36, 0.96) 0%, rgba(18, 20, 26, 0.96) 100%);
+}
+
+#matchResultPanel h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+#matchResultSummary {
+  font-size: 11px;
+  color: #d9e0ef;
+}
+
+#matchResultStats {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #b7c4df;
+  line-height: 1.35;
+}
+
+#matchResultStats strong {
+  color: #f5f5f5;
+}
+
+.matchResultActions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.matchResultActions button {
+  min-height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #f5f5f5;
+  background: linear-gradient(180deg, #2a2f39 0%, #1d2129 100%);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.matchResultActions button:hover {
+  background: linear-gradient(180deg, #343a47 0%, #222730 100%);
+}
+
+#devToolsHud {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 6px;
+}
+
+.devSection {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 6px;
+}
+
+.devSection > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c7d2ea;
+  margin-bottom: 6px;
+}
+
+.devSection[open] > summary {
+  margin-bottom: 8px;
+}
+
+.devToolSaveLoad {
+  display: flex;
+  gap: 6px;
+}
+
+.devToolSaveLoad button {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.devToolSaveLoad button:hover {
+  background: #2a2f3c;
+}
+
+.devToolRow {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.devToolRow span {
+  color: #d7d7d7;
+}
+
+.devToolRow input[type='range'] {
+  width: 100%;
+}
+
+.devToolRow select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.devToolMatrix {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 6px;
+}
+
+.devToolMatrixHeader {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d7d7d7;
+}
+
+.devToolMatrixLabels,
+.devToolMatrixRow {
+  display: grid;
+  grid-template-columns: 42px 1fr 1fr 76px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.devToolMatrixLabels {
+  color: #aeb6c8;
+}
+
+.devToolMatrixRow span {
+  color: #d7d7d7;
+}
+
+.devToolMatrixRow input[type='number'] {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.devToolMatrixRow select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+#toggleDmgNumsBtn {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#toggleDmgNumsBtn:hover {
+  background: #2a2f3c;
+}
+
+#battleTestPanel {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 6px;
+}
+
+#battleTestPanel h2 {
+  margin: 0 0 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#runBattleTestBtn {
+  padding: 6px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b2f1f;
+  color: #a8e6b0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#runBattleTestBtn:hover:not(:disabled) {
+  background: #243828;
+}
+
+#runBattleTestBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+#battleTestResults {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #d7d7d7;
+  min-height: 18px;
+}
+
+#selectionHud {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+#selectionHud h2 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#selectionInfo {
+  font-size: 11px;
+  color: #d7d7d7;
+  min-height: 26px;
+  line-height: 1.35;
 }
 
 #devToolsHud {
@@ -101,45 +466,50 @@ body {
 }
 
 #upgradeHud {
-  margin-top: 8px;
+  margin-top: 10px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .upgradeColumn {
-  border: 1px solid #2f2f2f;
-  border-radius: 6px;
-  padding: 8px;
-  background: #171717;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
 .upgradeColumn h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  grid-column: 1 / -1;
 }
 
 .upgradeSummary {
-  font-size: 12px;
+  font-size: 11px;
   color: #b7b7b7;
+  grid-column: 1 / -1;
 }
 
 .upgradeColumn button {
-  padding: 6px 10px;
-  border: 1px solid #3f3f3f;
-  background: #1f1f1f;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #2a2f39 0%, #1d2129 100%);
   color: #f5f5f5;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   text-align: left;
+  line-height: 1.2;
 }
 
 .upgradeColumn button:hover {
-  background: #2a2a2a;
+  background: linear-gradient(180deg, #343a47 0%, #222730 100%);
 }
 
 .upgradeColumn button:disabled {
@@ -147,23 +517,256 @@ body {
   cursor: not-allowed;
 }
 
+.tournamentPage {
+  min-height: 100vh;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.tournamentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tournamentHeader h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+#backToGameBtn {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #f3f6ff;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #3b4151 0%, #252a36 100%);
+  cursor: pointer;
+}
+
+#backToGameBtn:hover {
+  background: linear-gradient(180deg, #464d5f 0%, #2b313e 100%);
+}
+
+.tournamentCard {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(28, 30, 37, 0.96) 0%, rgba(18, 20, 26, 0.96) 100%);
+  display: grid;
+  gap: 10px;
+}
+
+.tournamentCard h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tournamentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tournamentGrid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #d7d7d7;
+}
+
+.tournamentGrid input,
+.tournamentGrid select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.inlineToggle {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  color: #aeb6c8;
+  margin-bottom: 6px;
+}
+
+.strategyList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  font-size: 12px;
+}
+
+.tournamentActions {
+  display: flex;
+  gap: 8px;
+}
+
+.tournamentActions button {
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: #1f2731;
+  color: #f5f5f5;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tournamentActions button:hover:not(:disabled) {
+  background: #293342;
+}
+
+.tournamentActions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tournamentStatus {
+  font-size: 12px;
+  color: #9fb4d6;
+}
+
+.tournamentTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tournamentTable th,
+.tournamentTable td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.tournamentTable th {
+  color: #c7d2ea;
+  font-weight: 700;
+}
+
+.muted {
+  color: #9aa4b8;
+  font-size: 12px;
+}
+
+#historyTableWrap,
+#historyCompareWrap {
+  overflow-x: auto;
+}
+
+.historySelectCell {
+  width: 72px;
+}
+
+.historySourceTag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(39, 49, 64, 0.75);
+  color: #d5def0;
+}
+
+.historyCompareTable th,
+.historyCompareTable td {
+  white-space: nowrap;
+}
+
+.historySettingsDump {
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 14, 20, 0.95);
+  color: #d5def0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 @media (max-width: 760px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  #app.app--hud-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  #hud {
+    overflow: visible;
+  }
+
+  #app.app--hud-collapsed #hud {
+    overflow: visible;
+    padding: 12px;
+  }
+
+  #app.app--hud-collapsed #hud > :not(.hudHeader) {
+    display: block;
+  }
+
+  #app.app--hud-collapsed .hudHeader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    justify-items: stretch;
+  }
+
+  #app.app--hud-collapsed .hudHeader h1 {
+    display: block;
+  }
+
   #upgradeHud {
     grid-template-columns: 1fr;
+  }
+
+  .upgradeColumn {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .upgradeColumn h2,
+  .upgradeSummary {
+    grid-column: 1 / -1;
+  }
+
+  .tournamentGrid,
+  .strategyList,
+  .tournamentActions {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 
 #tableWrap {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(16, 18, 24, 0.94) 0%, rgba(8, 9, 12, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 canvas {
   display: block;
-  border: 1px solid #444;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   margin: 0;
   background: #0a0a0a;
   image-rendering: auto;
