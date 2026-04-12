@@ -15,6 +15,7 @@
     fitTableToWindow,
     buildSettingsPayloadFromConstants,
     getSavedOrDefaultSettings,
+    resetToDefaultSettings,
     getTimeScale,
     setTimeScale,
   }) {
@@ -112,19 +113,21 @@
       syncToggleLabel();
     }
 
-    function setupResetDefaultsButton() {
-    const resetBtn = appEl.querySelector('button#resetDefaultsBtn');
-    if (!resetBtn) {
-      return;
-    }
+    let syncAllControls = null;
 
-    resetBtn.addEventListener('click', () => {
-      settingsManager?.resetToDefaultSettings();
-      syncAllControls();
-      updateUpgradeHud();
-      updateBalanceConfigHud();
-    });
-  }
+    function setupResetDefaultsButton() {
+      const resetBtn = appEl.querySelector('button#resetDefaultsBtn');
+      if (!resetBtn) {
+        return;
+      }
+
+      resetBtn.addEventListener('click', () => {
+        resetToDefaultSettings?.();
+        syncAllControls?.();
+        updateUpgradeHud();
+        updateBalanceConfigHud();
+      });
+    }
 
   function setupUpgradeControls() {
       const defs = [
@@ -716,6 +719,16 @@
       syncProtectionControls();
       syncEconomyControls();
 
+      syncAllControls = () => {
+        syncSpawnControls();
+        syncPeonControls();
+        syncStructureVitalityControls();
+        syncStructureDamageControls();
+        syncStructureCombatControls();
+        syncProtectionControls();
+        syncEconomyControls();
+      };
+
       const saveSettings = () => {
         const settings = buildSettingsPayloadFromConstants();
         storage.setItem(settingsKey, JSON.stringify(settings));
@@ -797,6 +810,7 @@
 
     return {
       setupHudCollapseControls,
+      setupResetDefaultsButton,
       setupUpgradeControls,
       setupDevControls,
       updateBalanceConfigHud,

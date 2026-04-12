@@ -122,6 +122,7 @@ const controls = gameControls?.createGameControls({
   fitTableToWindow,
   buildSettingsPayloadFromConstants: () => settingsManager?.buildSettingsPayloadFromConstants(),
   getSavedOrDefaultSettings: () => settingsManager?.getSavedOrDefaultSettings(),
+  resetToDefaultSettings: () => settingsManager?.resetToDefaultSettings(),
   getTimeScale: () => timeScale,
   setTimeScale: value => {
     timeScale = value;

@@ -1,7 +1,6 @@
 # Refactor Architecture & Module Organization
 
 **Last Updated**: April 12, 2026  
-**Status**: Merged to main (commit tracking refactor/architecture-and-tests)
 
 ---
 
@@ -193,7 +192,7 @@ Each module has deterministic, pure-function core logic:
 ## Testing Strategy
 
 ### All Tests Are Deterministic
-- No `Math.random()` anywhere in gameplay code
+- No `Math.random()` in deterministic simulation core logic (`simulation.js`)
 - No timing assumptions (tests don't sleep/wait)
 - All peon targeting tie-breaks use entity ID
 - Test output is reproducible every time
@@ -256,7 +255,7 @@ Enforces 95% coverage on simulation.js lines, functions, branches, statements.
 
 ## Architecture Principles
 
-1. **Deterministic First**: No RNG, exact math, reproducible outcomes
+1. **Deterministic First**: Simulation core uses no RNG, exact math, reproducible outcomes
 2. **Small Modules**: Each file has single clear responsibility
 3. **Testable Seams**: Pure functions at module boundaries
 4. **Shared Helpers**: Tournament and main game use same bot/session logic
