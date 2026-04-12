@@ -1,6 +1,13 @@
 const GAME_VERSION = '0.0.2';
 const SETTINGS_KEY = 'legion-dev-settings';
 const SETTINGS_DEFAULTS_KEY = `legion-dev-settings-defaults-${GAME_VERSION}`;
+const TOURNAMENT_HISTORY_KEY = 'legion-tournament-history-v1';
+const TOURNAMENT_HISTORY_MANIFEST_URL = '../logs/tournament-history-manifest.json';
+const TOURNAMENT_HISTORY_LIMIT = 300;
+
+let tournamentHistory = [];
+let selectedHistoryIds = new Set();
+let latestTournamentRun = null;
 
 const STRATEGIES = [
   { id: 'damage-only', label: 'Damage Only' },
@@ -74,6 +81,458 @@ function clampNumber(value, fallback, min, max) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, parsed));
+}
+
+function toIsoOrNow(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString();
+  }
+  return date.toISOString();
+}
+
+function makeTournamentRunId(run) {
+  if (typeof run.id === 'string' && run.id.trim()) {
+    return run.id;
+  }
+
+  const stamp = toIsoOrNow(run.timestamp || new Date().toISOString());
+  const strategies = Array.isArray(run.selectedStrategies) ? run.selectedStrategies.join('|') : 'none';
+  const mapLen = Number(run?.mapConfig?.length) || 0;
+  return `${stamp}-${mapLen}-${strategies}`;
+}
+
+function normalizeTournamentRun(rawRun, fallbackSource = 'local') {
+  if (!rawRun || typeof rawRun !== 'object') {
+    return null;
+  }
+
+  const pairResults = Array.isArray(rawRun.pairResults)
+    ? rawRun.pairResults
+    : [];
+  const leaderboardRows = Array.isArray(rawRun.leaderboardRows)
+    ? rawRun.leaderboardRows
+    : [];
+
+  const normalized = {
+    id: makeTournamentRunId(rawRun),
+    timestamp: toIsoOrNow(rawRun.timestamp || new Date().toISOString()),
+    source: typeof rawRun.source === 'string' ? rawRun.source : fallbackSource,
+    version: rawRun.version || GAME_VERSION,
+    selectedStrategies: Array.isArray(rawRun.selectedStrategies) ? rawRun.selectedStrategies.slice() : [],
+    mapConfig: rawRun.mapConfig && typeof rawRun.mapConfig === 'object' ? { ...rawRun.mapConfig } : {},
+    matchesPerSide: Number(rawRun.matchesPerSide) || 0,
+    maxMinutes: Number(rawRun.maxMinutes) || 0,
+    pairMatchCount: Number(rawRun.pairMatchCount) || 0,
+    totalMatches: Number(rawRun.totalMatches) || 0,
+    tickRate: Number(rawRun.tickRate) || 60,
+    pairResults,
+    leaderboardRows,
+  };
+
+  if (rawRun.settingsSnapshot && typeof rawRun.settingsSnapshot === 'object') {
+    normalized.settingsSnapshot = { ...rawRun.settingsSnapshot };
+  }
+
+  return normalized;
+}
+
+function parseJsonSafe(rawText) {
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return null;
+  }
+}
+
+function getStoredTournamentHistory() {
+  const parsed = parseStoredSettings(localStorage.getItem(TOURNAMENT_HISTORY_KEY));
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map(run => normalizeTournamentRun(run, 'local'))
+    .filter(Boolean);
+}
+
+function storeTournamentHistory() {
+  localStorage.setItem(TOURNAMENT_HISTORY_KEY, JSON.stringify(tournamentHistory.slice(0, TOURNAMENT_HISTORY_LIMIT)));
+}
+
+function mergeTournamentHistory(runs) {
+  const byId = new Map(tournamentHistory.map(run => [run.id, run]));
+
+  for (const run of runs) {
+    const normalized = normalizeTournamentRun(run, run?.source || 'imported');
+    if (!normalized) {
+      continue;
+    }
+
+    const existing = byId.get(normalized.id);
+    if (!existing) {
+      byId.set(normalized.id, normalized);
+      continue;
+    }
+
+    byId.set(normalized.id, {
+      ...existing,
+      ...normalized,
+      source: existing.source === 'local' ? existing.source : normalized.source,
+    });
+  }
+
+  tournamentHistory = [...byId.values()]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, TOURNAMENT_HISTORY_LIMIT);
+}
+
+async function loadTournamentHistoryFromManifest() {
+  if (typeof fetch !== 'function') {
+    return 0;
+  }
+
+  try {
+    const response = await fetch(TOURNAMENT_HISTORY_MANIFEST_URL, { cache: 'no-store' });
+    if (!response.ok) {
+      return 0;
+    }
+
+    const manifest = await response.json();
+    const files = Array.isArray(manifest)
+      ? manifest
+      : Array.isArray(manifest?.files)
+        ? manifest.files
+        : [];
+
+    const loadedRuns = [];
+    for (const item of files) {
+      const path = typeof item === 'string'
+        ? item
+        : typeof item?.path === 'string'
+          ? item.path
+          : null;
+
+      if (!path) {
+        continue;
+      }
+
+      const resolvedPath = path.startsWith('http') || path.startsWith('/') || path.startsWith('../')
+        ? path
+        : `../logs/${path}`;
+
+      try {
+        const fileResponse = await fetch(resolvedPath, { cache: 'no-store' });
+        if (!fileResponse.ok) {
+          continue;
+        }
+
+        const parsed = await fileResponse.json();
+        if (Array.isArray(parsed)) {
+          for (const run of parsed) {
+            loadedRuns.push({ ...run, source: 'manifest' });
+          }
+        } else if (parsed && typeof parsed === 'object') {
+          loadedRuns.push({ ...parsed, source: 'manifest' });
+        }
+      } catch {
+        // Ignore individual manifest file failures.
+      }
+    }
+
+    if (loadedRuns.length > 0) {
+      mergeTournamentHistory(loadedRuns);
+    }
+
+    return loadedRuns.length;
+  } catch {
+    // Missing manifest is expected on deployments like GitHub Pages.
+    return 0;
+  }
+}
+
+function formatHistoryTimestamp(isoText) {
+  const date = new Date(isoText);
+  if (Number.isNaN(date.getTime())) {
+    return isoText;
+  }
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+}
+
+function computeRunAggregateStats(run) {
+  const pairResults = Array.isArray(run.pairResults) ? run.pairResults : [];
+  let draws = 0;
+  let timeouts = 0;
+  let totalTicks = 0;
+
+  for (const pair of pairResults) {
+    draws += Number(pair.draws) || 0;
+    timeouts += Number(pair.timeouts) || 0;
+    totalTicks += Number(pair.totalTicks) || 0;
+  }
+
+  const top = Array.isArray(run.leaderboardRows) && run.leaderboardRows.length > 0
+    ? run.leaderboardRows[0]
+    : null;
+
+  const avgMatchSeconds = run.totalMatches > 0
+    ? totalTicks / run.totalMatches / Math.max(1, run.tickRate || 60)
+    : 0;
+
+  return {
+    draws,
+    timeouts,
+    totalTicks,
+    avgMatchSeconds,
+    top,
+  };
+}
+
+function renderHistoryComparison() {
+  const wrap = document.getElementById('historyCompareWrap');
+  const selectedRuns = tournamentHistory.filter(run => selectedHistoryIds.has(run.id));
+
+  if (selectedRuns.length === 0) {
+    wrap.innerHTML = '<div class="muted">Select history rows to compare.</div>';
+    return;
+  }
+
+  const headers = selectedRuns
+    .map(run => `<th>${formatHistoryTimestamp(run.timestamp)}</th>`)
+    .join('');
+
+  const row = (label, getter) => {
+    const cells = selectedRuns
+      .map(run => `<td>${getter(run)}</td>`)
+      .join('');
+    return `<tr><th>${label}</th>${cells}</tr>`;
+  };
+
+  const body = [
+    row('Source', run => `<span class="historySourceTag">${run.source}</span>`),
+    row('Strategies', run => String(run.selectedStrategies.length || 0)),
+    row('Total Matches', run => String(run.totalMatches || 0)),
+    row('Map', run => {
+      const length = Number(run?.mapConfig?.length) || '-';
+      const baseHp = Number(run?.mapConfig?.baseHp) || '-';
+      const towers = run?.mapConfig?.enableTowers ? 'on' : 'off';
+      return `${length}px, base ${baseHp}, towers ${towers}`;
+    }),
+    row('Top Strategy', run => {
+      const top = computeRunAggregateStats(run).top;
+      if (!top) {
+        return '-';
+      }
+      return `${top.name} (${(top.winRate * 100).toFixed(1)}%)`;
+    }),
+    row('Draws', run => String(computeRunAggregateStats(run).draws)),
+    row('Timeouts', run => String(computeRunAggregateStats(run).timeouts)),
+    row('Avg Match Time', run => `${computeRunAggregateStats(run).avgMatchSeconds.toFixed(1)}s`),
+  ].join('');
+
+  wrap.innerHTML = `
+    <table class="tournamentTable historyCompareTable">
+      <tr><th>Metric</th>${headers}</tr>
+      ${body}
+    </table>
+  `;
+}
+
+function renderHistoryTable() {
+  const wrap = document.getElementById('historyTableWrap');
+
+  if (tournamentHistory.length === 0) {
+    wrap.innerHTML = '<div class="muted">No history logs loaded.</div>';
+    renderHistoryComparison();
+    return;
+  }
+
+  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th></tr>';
+  const body = tournamentHistory.map(run => {
+    const stats = computeRunAggregateStats(run);
+    const checked = selectedHistoryIds.has(run.id) ? 'checked' : '';
+    const topText = stats.top
+      ? `${stats.top.name} ${(stats.top.winRate * 100).toFixed(1)}%`
+      : '-';
+    const mapLength = Number(run?.mapConfig?.length) || '-';
+    const towers = run?.mapConfig?.enableTowers ? 'on' : 'off';
+
+    return `
+      <tr>
+        <td><input class="historyCompareCheckbox" data-run-id="${run.id}" type="checkbox" ${checked} /></td>
+        <td>${formatHistoryTimestamp(run.timestamp)}</td>
+        <td><span class="historySourceTag">${run.source}</span></td>
+        <td>${run.selectedStrategies.length}</td>
+        <td>${run.totalMatches}</td>
+        <td>${topText}</td>
+        <td>${mapLength}px, towers ${towers}</td>
+      </tr>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `<table class="tournamentTable">${header}${body}</table>`;
+
+  for (const checkbox of document.querySelectorAll('.historyCompareCheckbox')) {
+    checkbox.addEventListener('change', event => {
+      const runId = event.target.getAttribute('data-run-id');
+      if (!runId) {
+        return;
+      }
+
+      if (event.target.checked) {
+        if (selectedHistoryIds.size >= 4) {
+          event.target.checked = false;
+          document.getElementById('historyStatus').textContent = 'Select up to 4 runs for comparison.';
+          return;
+        }
+        selectedHistoryIds.add(runId);
+      } else {
+        selectedHistoryIds.delete(runId);
+      }
+
+      renderHistoryComparison();
+    });
+  }
+
+  renderHistoryComparison();
+}
+
+function setHistoryStatus(text) {
+  const statusEl = document.getElementById('historyStatus');
+  if (statusEl) {
+    statusEl.textContent = text;
+  }
+}
+
+function exportLatestTournamentResult() {
+  if (!latestTournamentRun) {
+    setHistoryStatus('No latest tournament run available to export yet.');
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(latestTournamentRun, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `tournament-run-${Date.now()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  setHistoryStatus('Exported latest tournament run JSON.');
+}
+
+async function importTournamentHistoryFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (files.length === 0) {
+    return;
+  }
+
+  const importedRuns = [];
+  for (const file of files) {
+    try {
+      const parsed = parseJsonSafe(await file.text());
+      if (Array.isArray(parsed)) {
+        for (const run of parsed) {
+          importedRuns.push({ ...run, source: `file:${file.name}` });
+        }
+      } else if (parsed && typeof parsed === 'object') {
+        importedRuns.push({ ...parsed, source: `file:${file.name}` });
+      }
+    } catch {
+      // Ignore invalid files and continue importing others.
+    }
+  }
+
+  if (importedRuns.length === 0) {
+    setHistoryStatus('No valid tournament runs found in selected files.');
+    return;
+  }
+
+  mergeTournamentHistory(importedRuns);
+  storeTournamentHistory();
+  renderHistoryTable();
+  setHistoryStatus(`Imported ${importedRuns.length} run(s) from ${files.length} file(s).`);
+}
+
+async function refreshTournamentHistory() {
+  tournamentHistory = getStoredTournamentHistory();
+  const manifestLoadedCount = await loadTournamentHistoryFromManifest();
+  renderHistoryTable();
+  if (manifestLoadedCount > 0) {
+    setHistoryStatus(`History loaded (${tournamentHistory.length} runs total, including ${manifestLoadedCount} from logs manifest).`);
+  } else {
+    setHistoryStatus(`History loaded (${tournamentHistory.length} runs total).`);
+  }
+}
+
+function setupHistoryControls() {
+  const exportBtn = document.getElementById('exportLatestTournamentBtn');
+  const importBtn = document.getElementById('importTournamentHistoryBtn');
+  const refreshBtn = document.getElementById('refreshTournamentHistoryBtn');
+  const clearBtn = document.getElementById('clearTournamentHistoryBtn');
+  const importInput = document.getElementById('importTournamentHistoryInput');
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportLatestTournamentResult);
+  }
+
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => {
+      importInput.click();
+    });
+
+    importInput.addEventListener('change', async event => {
+      await importTournamentHistoryFiles(event.target.files);
+      importInput.value = '';
+    });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      refreshTournamentHistory();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      localStorage.removeItem(TOURNAMENT_HISTORY_KEY);
+      tournamentHistory = [];
+      selectedHistoryIds = new Set();
+      renderHistoryTable();
+      setHistoryStatus('Cleared local tournament history.');
+    });
+  }
+}
+
+function buildTournamentRunRecord({
+  selectedStrategies,
+  mapConfig,
+  matchesPerSide,
+  maxMinutes,
+  pairMatchCount,
+  pairResults,
+  leaderboardRows,
+  tickRate,
+  settings,
+}) {
+  const totalMatches = pairResults.length * pairMatchCount;
+  return normalizeTournamentRun({
+    id: `${new Date().toISOString()}-${Math.round(Math.random() * 1e9)}`,
+    timestamp: new Date().toISOString(),
+    source: 'local',
+    version: GAME_VERSION,
+    selectedStrategies,
+    mapConfig,
+    matchesPerSide,
+    maxMinutes,
+    pairMatchCount,
+    totalMatches,
+    tickRate,
+    pairResults,
+    leaderboardRows,
+    settingsSnapshot: settings,
+  }, 'local');
 }
 
 function applyMapProfile(profileId) {
@@ -246,16 +705,20 @@ function runPairSeries({ strategyA, strategyB, matchesPerSide, settings, mapConf
   return result;
 }
 
-function renderLeaderboard(summaryByStrategy) {
-  const rows = [...summaryByStrategy.values()].sort((a, b) => {
+function buildLeaderboardRows(summaryByStrategy) {
+  return [...summaryByStrategy.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     return b.winRate - a.winRate;
   });
+}
+
+function renderLeaderboard(summaryByStrategy) {
+  const rows = buildLeaderboardRows(summaryByStrategy);
 
   const wrap = document.getElementById('leaderboardTableWrap');
   if (rows.length === 0) {
     wrap.innerHTML = '<div class="muted">No results yet.</div>';
-    return;
+    return [];
   }
 
   const header = '<tr><th>Strategy</th><th>Pts</th><th>W</th><th>L</th><th>D</th><th>Win%</th><th>Avg Gold Diff</th></tr>';
@@ -264,6 +727,7 @@ function renderLeaderboard(summaryByStrategy) {
   )).join('');
 
   wrap.innerHTML = `<table class="tournamentTable">${header}${body}</table>`;
+  return rows;
 }
 
 function renderPairResults(pairResults, matchesPerPair, tickRate) {
@@ -370,8 +834,23 @@ function runTournament() {
       row.avgGoldDiff = row.goldDiffGames > 0 ? row.goldDiffSum / row.goldDiffGames : 0;
     }
 
-    renderLeaderboard(summaryByStrategy);
+    const leaderboardRows = renderLeaderboard(summaryByStrategy);
     renderPairResults(pairResults, pairMatchCount, sampleSim.constants.TICK_RATE);
+
+    latestTournamentRun = buildTournamentRunRecord({
+      selectedStrategies,
+      mapConfig,
+      matchesPerSide,
+      maxMinutes,
+      pairMatchCount,
+      pairResults,
+      leaderboardRows,
+      tickRate: sampleSim.constants.TICK_RATE,
+      settings,
+    });
+    mergeTournamentHistory([latestTournamentRun]);
+    storeTournamentHistory();
+    renderHistoryTable();
 
     statusEl.textContent = `Done: ${pairs.length} pairings, ${pairs.length * pairMatchCount} matches.`;
     runButton.disabled = false;
@@ -395,8 +874,10 @@ function init() {
   document.getElementById('backToGameBtn').addEventListener('click', () => {
     window.location.href = 'index.html';
   });
+  setupHistoryControls();
 
   applyMapProfile(mapProfileSelect.value);
+  refreshTournamentHistory();
 
   if (!getSavedSettings()) {
     document.getElementById('tournamentStatus').textContent = 'No saved settings found yet. Save settings in main game first.';

@@ -66,6 +66,21 @@
     </section>
 
     <section class="tournamentCard">
+      <h2>History</h2>
+      <div class="tournamentActions">
+        <button id="exportLatestTournamentBtn" type="button">Export Latest Result</button>
+        <button id="importTournamentHistoryBtn" type="button">Import JSON Logs</button>
+        <button id="refreshTournamentHistoryBtn" type="button">Refresh Auto-Load</button>
+        <button id="clearTournamentHistoryBtn" type="button">Clear Local History</button>
+      </div>
+      <input id="importTournamentHistoryInput" type="file" accept="application/json,.json" multiple hidden />
+      <div id="historyStatus" class="tournamentStatus">History ready.</div>
+      <div id="historyTableWrap"></div>
+      <h3>Comparison</h3>
+      <div id="historyCompareWrap"></div>
+    </section>
+
+    <section class="tournamentCard">
       <h2>Leaderboard</h2>
       <div id="leaderboardTableWrap"></div>
     </section>

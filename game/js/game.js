@@ -10,6 +10,34 @@ const { constants, layout, state } = simulation;
 const GAME_VERSION = '0.0.2';
 const SETTINGS_KEY = 'legion-dev-settings';
 const SETTINGS_DEFAULTS_KEY = `legion-dev-settings-defaults-${GAME_VERSION}`;
+const BASE_SETTINGS = {
+  spawnPadding: 15,
+  spawnSlotCount: 7,
+  spawnIntervalSeconds: 6,
+  peonSpeed: 25,
+  peonHp: 100,
+  peonDamage: 9,
+  peonAttackRate: 1,
+  towerDamagePerMinute: 1.2,
+  baseDamagePerMinute: 1.5,
+  towerDamage: 30,
+  baseDamage: 30,
+  towerAttackRate: 0.5,
+  baseAttackRate: 0.4,
+  structureGraceSeconds: 20,
+  baseGraceSeconds: 45,
+  upgradeDamageBaseCost: 20,
+  upgradeDamageCostGrowth: 1.9,
+  upgradeDamageCostFormula: 'linear',
+  upgradeHealthBaseCost: 5,
+  upgradeHealthCostGrowth: 1.75,
+  upgradeHealthCostFormula: 'linear',
+  upgradeSpawnBaseCost: 500,
+  upgradeSpawnCostGrowth: 1.55,
+  upgradeSpawnCostFormula: 'exp',
+  killBountyGold: 10,
+  shrineGoldPerSecond: 0,
+};
 const BASE_CANVAS_WIDTH = canvas.width;
 const BASE_CANVAS_HEIGHT = canvas.height;
 const TURN_SMOOTHING = 0.22;
@@ -153,6 +181,49 @@ function getSavedOrDefaultSettings() {
   }
 
   return parseStoredSettings(localStorage.getItem(SETTINGS_DEFAULTS_KEY));
+}
+
+function applyBaseSettings(settings = BASE_SETTINGS) {
+  simulation.setSpawnLayout({
+    padding: settings.spawnPadding,
+    slotCount: settings.spawnSlotCount,
+  });
+  simulation.setSpawnTiming({
+    spawnIntervalSeconds: settings.spawnIntervalSeconds,
+  });
+  simulation.setPeonValues({
+    peonSpeed: settings.peonSpeed,
+    peonHp: settings.peonHp,
+    peonDamage: settings.peonDamage,
+    peonAttackRate: settings.peonAttackRate,
+  });
+  simulation.setStructureDamageScaling({
+    towerDamagePerMinute: settings.towerDamagePerMinute,
+    baseDamagePerMinute: settings.baseDamagePerMinute,
+  });
+  simulation.setStructureCombatValues({
+    towerDamage: settings.towerDamage,
+    baseDamage: settings.baseDamage,
+    towerAttackRate: settings.towerAttackRate,
+    baseAttackRate: settings.baseAttackRate,
+  });
+  simulation.setProtectionWindows({
+    structureDamageGraceSeconds: settings.structureGraceSeconds,
+    baseDamageGraceSeconds: settings.baseGraceSeconds,
+  });
+  simulation.setEconomyValues({
+    upgradeDamageBaseCost: settings.upgradeDamageBaseCost,
+    upgradeDamageCostGrowth: settings.upgradeDamageCostGrowth,
+    upgradeDamageCostFormula: settings.upgradeDamageCostFormula,
+    upgradeHealthBaseCost: settings.upgradeHealthBaseCost,
+    upgradeHealthCostGrowth: settings.upgradeHealthCostGrowth,
+    upgradeHealthCostFormula: settings.upgradeHealthCostFormula,
+    upgradeSpawnBaseCost: settings.upgradeSpawnBaseCost,
+    upgradeSpawnCostGrowth: settings.upgradeSpawnCostGrowth,
+    upgradeSpawnCostFormula: settings.upgradeSpawnCostFormula,
+    killBountyGold: settings.killBountyGold,
+    shrineGoldPerSecond: settings.shrineGoldPerSecond,
+  });
 }
 
 window.legionDebug = {
@@ -2063,6 +2134,7 @@ function setupBattleTestPanel() {
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
+  applyBaseSettings();
   ensureVersionDefaultsSaved();
   simulation.setDecisionLogEnabled(true);
   setupHudCollapseControls();

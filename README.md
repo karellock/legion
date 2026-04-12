@@ -17,6 +17,11 @@ Clean baseline for a deterministic tug-of-war prototype.
 Open `game/index.html` in your browser.
 Open `game/tournament.html` for round-robin AI tournament testing.
 
+Tournament history notes:
+- The tournament page saves run history in browser local storage (`legion-tournament-history-v1`).
+- You can export/import run JSON files from the tournament History section.
+- Optional local folder auto-load uses `logs/tournament-history-manifest.json` with `{ "files": ["file1.json", "subdir/file2.json"] }` and attempts to fetch each file from `logs/`.
+
 ## Test
 
 - CI runs `game/tests/simulation.node.test.js` on every pull request to `main`.

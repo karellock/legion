@@ -661,6 +661,30 @@ body {
   font-size: 12px;
 }
 
+#historyTableWrap,
+#historyCompareWrap {
+  overflow-x: auto;
+}
+
+.historySelectCell {
+  width: 72px;
+}
+
+.historySourceTag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(39, 49, 64, 0.75);
+  color: #d5def0;
+}
+
+.historyCompareTable th,
+.historyCompareTable td {
+  white-space: nowrap;
+}
+
 @media (max-width: 760px) {
   #app {
     grid-template-columns: 1fr;

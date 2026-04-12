@@ -524,6 +524,22 @@ runTest('peon kill awards deterministic bounty gold to killer side', () => {
   assert(simulation.state.rightGold === 0, 'right side should not gain gold from dying unit');
 });
 
+runTest('zero kill bounty does not change gold when a peon dies', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+  simulation.setEconomyValues({ killBountyGold: 0 });
+
+  const leftPeon = simulation.addPeon('left', 390, 200);
+  simulation.addPeon('right', 400, 200, { health: 1, maxHealth: 1 });
+  makeReady(leftPeon);
+
+  simulation.tick();
+
+  assert(simulation.state.leftGold === 0, 'left side should gain no gold when kill bounty is zero');
+  assert(simulation.state.leftTotalGold === 0, 'total gold should also stay unchanged when awarded amount is zero');
+});
+
 runTest('gold shrine grants passive income only when one side controls midline push', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -555,6 +571,28 @@ runTest('buyUpgrade rejects purchase when side lacks enough gold', () => {
   assert(result.ok === false, 'purchase should fail when gold is insufficient');
   assert(result.reason === 'insufficient-gold', 'failure reason should be insufficient gold');
   assert(simulation.state.leftUpgrades.damageLevel === 0, 'damage level should remain unchanged after failed purchase');
+});
+
+runTest('buyUpgrade rejects invalid side', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const result = simulation.buyUpgrade('center', 'damage');
+
+  assert(result.ok === false, 'purchase should fail for invalid side');
+  assert(result.reason === 'invalid-side', 'failure reason should flag invalid side');
+});
+
+runTest('buyUpgrade rejects unknown upgrade type', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const result = simulation.buyUpgrade('left', 'range');
+
+  assert(result.ok === false, 'purchase should fail for unknown upgrade type');
+  assert(result.reason === 'invalid-upgrade-type', 'failure reason should flag invalid upgrade type');
 });
 
 runTest('upgrade costs grow by configurable multiplier and spend gold deterministically', () => {
@@ -1002,6 +1040,20 @@ runTest('chooseMeleeAttackTarget keeps preferred target when still valid and in 
   assert(chosen === preferred, 'preferred in-range target should be kept while it still has remaining health');
 });
 
+runTest('chooseMeleeAttackTarget keeps preferred when alternatives are already fully planned', () => {
+  const simulation = createSimulation();
+  simulation.clearPeons();
+  disableAutoSpawns(simulation);
+
+  const left = simulation.addPeon('left', 100, 100);
+  const preferred = simulation.addPeon('right', 105, 100, { health: 6, maxHealth: 100 });
+  const other = simulation.addPeon('right', 106, 100, { health: 6, maxHealth: 100 });
+  const plannedDamage = new Map([[other, 6]]);
+
+  const chosen = simulation.testHooks.chooseMeleeAttackTarget(left, preferred, [preferred, other], plannedDamage);
+  assert(chosen === preferred, 'preferred target should be kept when other in-range target is no longer viable');
+});
+
 runTest('chooseMeleeAttackTarget kill-candidate sort prefers lower remaining hp', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
@@ -1044,6 +1096,10 @@ runTest('chooseMeleeAttackTarget non-kill sort and fallback path are covered', (
   const fullyPlanned = new Map([[e1, 100], [e2, 100], [e3, 100]]);
   const fallback = simulation.testHooks.chooseMeleeAttackTarget(left, null, [e1, e2, e3], fullyPlanned);
   assert([e1, e2, e3].includes(fallback), 'fallback should still return an in-range candidate when all remaining hp <= 0');
+
+  const partiallyPlanned = new Map([[e1, 1], [e2, 1], [e3, 1]]);
+  const positiveRemainingFallback = simulation.testHooks.chooseMeleeAttackTarget(left, null, [e1, e2, e3], partiallyPlanned);
+  assert([e1, e2, e3].includes(positiveRemainingFallback), 'fallback should return an in-range candidate when remaining hp is still positive');
 });
 
 runTest('chooseMeleeAttackTarget uses id tie-break for equally good kill candidates', () => {
@@ -1051,7 +1107,7 @@ runTest('chooseMeleeAttackTarget uses id tie-break for equally good kill candida
   simulation.clearPeons();
   disableAutoSpawns(simulation);
 
-  const left = simulation.addPeon('left', 100, 100);
+  const left = simulation.addPeon('left', 100, 100, { damage: 10 });
   const earlier = simulation.addPeon('right', 106, 100, { health: 10, maxHealth: 100 });
   const later = simulation.addPeon('right', 106, 100, { health: 10, maxHealth: 100 });
 
