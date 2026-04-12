@@ -15,6 +15,7 @@ Clean baseline for a deterministic tug-of-war prototype.
 ## Run
 
 Open `game/index.html` in your browser.
+Open `game/tournament.html` for round-robin AI tournament testing.
 
 ## Test
 

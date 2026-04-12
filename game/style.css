@@ -14,7 +14,7 @@ body {
 #app {
   height: 100vh;
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  grid-template-columns: minmax(392px, 476px) minmax(0, 1fr);
   padding: 12px;
   gap: 12px;
   transition: grid-template-columns 0.2s ease;
@@ -115,6 +115,23 @@ body {
   background: linear-gradient(180deg, #333847 0%, #21252d 100%);
 }
 
+#openTournamentBtn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, #3a2f4b 0%, #2a2038 100%);
+  color: #f5f5f5;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#openTournamentBtn:hover {
+  background: linear-gradient(180deg, #47395d 0%, #322645 100%);
+}
+
 #matchControls {
   margin: 8px 0 6px;
 }
@@ -196,6 +213,45 @@ body {
   gap: 6px;
 }
 
+.devSection {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 6px;
+}
+
+.devSection > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c7d2ea;
+  margin-bottom: 6px;
+}
+
+.devSection[open] > summary {
+  margin-bottom: 8px;
+}
+
+.devToolSaveLoad {
+  display: flex;
+  gap: 6px;
+}
+
+.devToolSaveLoad button {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.devToolSaveLoad button:hover {
+  background: #2a2f3c;
+}
+
 .devToolRow {
   display: grid;
   grid-template-columns: 74px 1fr auto;
@@ -220,6 +276,116 @@ body {
   color: #f5f5f5;
   border-radius: 6px;
   font-size: 11px;
+}
+
+.devToolMatrix {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 6px;
+}
+
+.devToolMatrixHeader {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d7d7d7;
+}
+
+.devToolMatrixLabels,
+.devToolMatrixRow {
+  display: grid;
+  grid-template-columns: 42px 1fr 1fr 76px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.devToolMatrixLabels {
+  color: #aeb6c8;
+}
+
+.devToolMatrixRow span {
+  color: #d7d7d7;
+}
+
+.devToolMatrixRow input[type='number'] {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.devToolMatrixRow select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+#toggleDmgNumsBtn {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#toggleDmgNumsBtn:hover {
+  background: #2a2f3c;
+}
+
+#battleTestPanel {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 6px;
+}
+
+#battleTestPanel h2 {
+  margin: 0 0 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#runBattleTestBtn {
+  padding: 6px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1b2f1f;
+  color: #a8e6b0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#runBattleTestBtn:hover:not(:disabled) {
+  background: #243828;
+}
+
+#runBattleTestBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+#battleTestResults {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #d7d7d7;
+  min-height: 18px;
 }
 
 #selectionHud {
@@ -351,6 +517,150 @@ body {
   cursor: not-allowed;
 }
 
+.tournamentPage {
+  min-height: 100vh;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.tournamentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tournamentHeader h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+#backToGameBtn {
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #f3f6ff;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(180deg, #3b4151 0%, #252a36 100%);
+  cursor: pointer;
+}
+
+#backToGameBtn:hover {
+  background: linear-gradient(180deg, #464d5f 0%, #2b313e 100%);
+}
+
+.tournamentCard {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(28, 30, 37, 0.96) 0%, rgba(18, 20, 26, 0.96) 100%);
+  display: grid;
+  gap: 10px;
+}
+
+.tournamentCard h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tournamentGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tournamentGrid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #d7d7d7;
+}
+
+.tournamentGrid input,
+.tournamentGrid select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #1b1f27;
+  color: #f5f5f5;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.inlineToggle {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  color: #aeb6c8;
+  margin-bottom: 6px;
+}
+
+.strategyList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  font-size: 12px;
+}
+
+.tournamentActions {
+  display: flex;
+  gap: 8px;
+}
+
+.tournamentActions button {
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: #1f2731;
+  color: #f5f5f5;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tournamentActions button:hover:not(:disabled) {
+  background: #293342;
+}
+
+.tournamentActions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tournamentStatus {
+  font-size: 12px;
+  color: #9fb4d6;
+}
+
+.tournamentTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tournamentTable th,
+.tournamentTable td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.tournamentTable th {
+  color: #c7d2ea;
+  font-weight: 700;
+}
+
+.muted {
+  color: #9aa4b8;
+  font-size: 12px;
+}
+
 @media (max-width: 760px) {
   #app {
     grid-template-columns: 1fr;
@@ -394,6 +704,13 @@ body {
   .upgradeColumn h2,
   .upgradeSummary {
     grid-column: 1 / -1;
+  }
+
+  .tournamentGrid,
+  .strategyList,
+  .tournamentActions {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 

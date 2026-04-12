@@ -14,11 +14,13 @@
         <button id="hudToggleBtn" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">Hide</button>
       </div>
       <p>Press V to toggle vision ranges.</p>
+      <button id="toggleDmgNumsBtn" type="button">DMG Numbers: OFF</button>
       <div id="balanceConfig">Balance: D+1 H+5 S+1 | Grace S20s B45s | Spawn Y 50-550 (pad 0, slots 7)</div>
       <div id="matchControls">
         <button id="restartMatchBtn" type="button">Restart Match</button>
       </div>
       <button id="downloadLogsBtn" type="button">Download Logs</button>
+      <button id="openTournamentBtn" type="button">Open Tournament Lab</button>
       <section id="matchResultPanel" hidden>
         <h2 id="matchResultTitle">Match Paused</h2>
         <div id="matchResultSummary">A base was destroyed.</div>
@@ -29,66 +31,192 @@
         </div>
       </section>
       <div id="devToolsHud">
-        <label class="devToolRow" for="timeScaleRange">
-          <span>Time Scale</span>
-          <input id="timeScaleRange" type="range" min="0" max="4" step="0.25" value="1" />
-          <strong id="timeScaleValue">1.00x</strong>
-        </label>
-        <label class="devToolRow" for="leftBotStrategy">
-          <span>Blue Bot</span>
-          <select id="leftBotStrategy">
-            <option value="none">None</option>
-            <option value="damage-only">Damage Only</option>
-            <option value="health-only">Health Only</option>
-            <option value="spawn-only">Spawn Only</option>
-            <option value="balanced">Balanced</option>
-          </select>
-        </label>
-        <label class="devToolRow" for="rightBotStrategy">
-          <span>Red Bot</span>
-          <select id="rightBotStrategy">
-            <option value="none">None</option>
-            <option value="damage-only">Damage Only</option>
-            <option value="health-only">Health Only</option>
-            <option value="spawn-only">Spawn Only</option>
-            <option value="balanced">Balanced</option>
-          </select>
-        </label>
-        <label class="devToolRow" for="spawnPaddingRange">
-          <span>Spawn Space</span>
-          <input id="spawnPaddingRange" type="range" min="0" max="250" step="1" value="250" />
-          <strong id="spawnPaddingValue">250</strong>
-        </label>
-        <label class="devToolRow" for="spawnSlotCountRange">
-          <span>Spawn Slots</span>
-          <input id="spawnSlotCountRange" type="range" min="2" max="15" step="1" value="7" />
-          <strong id="spawnSlotCountValue">7</strong>
-        </label>
-        <label class="devToolRow" for="towerDamagePerMinuteRange">
-          <span>Tower Dmg/min</span>
-          <input id="towerDamagePerMinuteRange" type="range" min="0" max="6" step="0.1" value="1.2" />
-          <strong id="towerDamagePerMinuteValue">1.2</strong>
-        </label>
-        <label class="devToolRow" for="baseDamagePerMinuteRange">
-          <span>Base Dmg/min</span>
-          <input id="baseDamagePerMinuteRange" type="range" min="0" max="4" step="0.1" value="0.6" />
-          <strong id="baseDamagePerMinuteValue">0.6</strong>
-        </label>
-        <label class="devToolRow" for="upgradeBaseCostRange">
-          <span>Upgrade Gold</span>
-          <input id="upgradeBaseCostRange" type="range" min="0" max="100" step="1" value="20" />
-          <strong id="upgradeBaseCostValue">20</strong>
-        </label>
-        <label class="devToolRow" for="killBountyGoldRange">
-          <span>Kill Gold</span>
-          <input id="killBountyGoldRange" type="range" min="0" max="50" step="1" value="10" />
-          <strong id="killBountyGoldValue">10</strong>
-        </label>
-        <label class="devToolRow" for="shrineGoldPerSecondRange">
-          <span>Shrine Gold/s</span>
-          <input id="shrineGoldPerSecondRange" type="range" min="0" max="20" step="1" value="2" />
-          <strong id="shrineGoldPerSecondValue">2</strong>
-        </label>
+        <div class="devToolSaveLoad">
+          <button id="saveSettingsBtn" type="button">Save Settings</button>
+          <button id="loadSettingsBtn" type="button">Load Settings</button>
+        </div>
+        <details class="devSection" open>
+          <summary>Simulation</summary>
+          <label class="devToolRow" for="timeScaleRange">
+            <span>Time Scale</span>
+            <input id="timeScaleRange" type="range" min="0" max="4" step="0.25" value="1" />
+            <strong id="timeScaleValue">1.00x</strong>
+          </label>
+        </details>
+
+        <details class="devSection" open>
+          <summary>Bots</summary>
+          <label class="devToolRow" for="leftBotStrategy">
+            <span>Blue Bot</span>
+            <select id="leftBotStrategy">
+              <option value="none">None</option>
+              <option value="damage-only">Damage Only</option>
+              <option value="health-only">Health Only</option>
+              <option value="spawn-only">Spawn Only</option>
+              <option value="balanced">Balanced</option>
+              <optgroup label="Double Trouble">
+                <option value="damage-health">D + HP</option>
+                <option value="damage-spawn">D + Spawn</option>
+                <option value="health-spawn">HP + Spawn</option>
+              </optgroup>
+            </select>
+          </label>
+          <label class="devToolRow" for="rightBotStrategy">
+            <span>Red Bot</span>
+            <select id="rightBotStrategy">
+              <option value="none">None</option>
+              <option value="damage-only">Damage Only</option>
+              <option value="health-only">Health Only</option>
+              <option value="spawn-only">Spawn Only</option>
+              <option value="balanced">Balanced</option>
+              <optgroup label="Double Trouble">
+                <option value="damage-health">D + HP</option>
+                <option value="damage-spawn">D + Spawn</option>
+                <option value="health-spawn">HP + Spawn</option>
+              </optgroup>
+            </select>
+          </label>
+        </details>
+
+        <details class="devSection" open>
+          <summary>Map And Spawn</summary>
+          <label class="devToolRow" for="spawnPaddingRange">
+            <span>Spawn Space</span>
+            <input id="spawnPaddingRange" type="range" min="0" max="250" step="1" value="250" />
+            <strong id="spawnPaddingValue">250</strong>
+          </label>
+          <label class="devToolRow" for="spawnSlotCountRange">
+            <span>Spawn Slots</span>
+            <input id="spawnSlotCountRange" type="range" min="2" max="15" step="1" value="7" />
+            <strong id="spawnSlotCountValue">7</strong>
+          </label>
+          <label class="devToolRow" for="spawnIntervalRange">
+            <span>Spawn Rate s</span>
+            <input id="spawnIntervalRange" type="range" min="0.5" max="8" step="0.1" value="3" />
+            <strong id="spawnIntervalValue">3.0</strong>
+          </label>
+        </details>
+
+        <details class="devSection" open>
+          <summary>Peons</summary>
+          <label class="devToolRow" for="peonSpeedRange">
+            <span>Peon Speed</span>
+            <input id="peonSpeedRange" type="range" min="10" max="140" step="1" value="50" />
+            <strong id="peonSpeedValue">50</strong>
+          </label>
+          <label class="devToolRow" for="peonHpRange">
+            <span>Peon HP</span>
+            <input id="peonHpRange" type="range" min="20" max="400" step="5" value="100" />
+            <strong id="peonHpValue">100</strong>
+          </label>
+          <label class="devToolRow" for="peonDamageRange">
+            <span>Peon Dmg</span>
+            <input id="peonDamageRange" type="range" min="1" max="50" step="1" value="9" />
+            <strong id="peonDamageValue">9</strong>
+          </label>
+          <label class="devToolRow" for="peonAttackRateRange">
+            <span>Atk Rate</span>
+            <input id="peonAttackRateRange" type="range" min="0.2" max="3" step="0.05" value="1" />
+            <strong id="peonAttackRateValue">1.00</strong>
+          </label>
+        </details>
+
+        <details class="devSection" open>
+          <summary>Structures</summary>
+          <label class="devToolRow" for="towerDamagePerMinuteRange">
+            <span>Tower Dmg/min</span>
+            <input id="towerDamagePerMinuteRange" type="range" min="0" max="6" step="0.1" value="1.2" />
+            <strong id="towerDamagePerMinuteValue">1.2</strong>
+          </label>
+          <label class="devToolRow" for="towerDamageRange">
+            <span>Tower Dmg</span>
+            <input id="towerDamageRange" type="range" min="0" max="80" step="1" value="26" />
+            <strong id="towerDamageValue">26</strong>
+          </label>
+          <label class="devToolRow" for="towerAttackRateRange">
+            <span>Tower Rate</span>
+            <input id="towerAttackRateRange" type="range" min="0.1" max="2" step="0.05" value="0.5" />
+            <strong id="towerAttackRateValue">0.50</strong>
+          </label>
+          <label class="devToolRow" for="baseDamagePerMinuteRange">
+            <span>Base Dmg/min</span>
+            <input id="baseDamagePerMinuteRange" type="range" min="0" max="4" step="0.1" value="0.6" />
+            <strong id="baseDamagePerMinuteValue">0.6</strong>
+          </label>
+          <label class="devToolRow" for="baseDamageRange">
+            <span>Base Dmg</span>
+            <input id="baseDamageRange" type="range" min="0" max="60" step="1" value="14" />
+            <strong id="baseDamageValue">14</strong>
+          </label>
+          <label class="devToolRow" for="baseAttackRateRange">
+            <span>Base Rate</span>
+            <input id="baseAttackRateRange" type="range" min="0.1" max="2" step="0.05" value="0.4" />
+            <strong id="baseAttackRateValue">0.40</strong>
+          </label>
+          <label class="devToolRow" for="structureGraceSecondsRange">
+            <span>Tower Grace</span>
+            <input id="structureGraceSecondsRange" type="range" min="0" max="180" step="1" value="20" />
+            <strong id="structureGraceSecondsValue">20</strong>
+          </label>
+          <label class="devToolRow" for="baseGraceSecondsRange">
+            <span>Base Grace</span>
+            <input id="baseGraceSecondsRange" type="range" min="0" max="300" step="1" value="45" />
+            <strong id="baseGraceSecondsValue">45</strong>
+          </label>
+        </details>
+
+        <details class="devSection" open>
+          <summary>Economy</summary>
+          <div class="devToolMatrix" id="upgradeCostEditor">
+            <div class="devToolMatrixHeader">Upgrade Cost</div>
+            <div class="devToolMatrixLabels">
+              <span>Type</span>
+              <span>Base</span>
+              <span>Growth</span>
+              <span>Formula</span>
+            </div>
+            <label class="devToolMatrixRow" for="damageUpgradeBaseCostInput">
+              <span>Dmg</span>
+              <input id="damageUpgradeBaseCostInput" type="number" min="0" max="300" step="1" value="20" />
+              <input id="damageUpgradeCostGrowthInput" type="number" min="1" max="3" step="0.05" value="1.5" />
+              <select id="damageUpgradeCostFormulaSelect">
+                <option value="exp" selected>Exp</option>
+                <option value="linear">Linear</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </label>
+            <label class="devToolMatrixRow" for="healthUpgradeBaseCostInput">
+              <span>HP</span>
+              <input id="healthUpgradeBaseCostInput" type="number" min="0" max="300" step="1" value="20" />
+              <input id="healthUpgradeCostGrowthInput" type="number" min="1" max="3" step="0.05" value="1.5" />
+              <select id="healthUpgradeCostFormulaSelect">
+                <option value="exp" selected>Exp</option>
+                <option value="linear">Linear</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </label>
+            <label class="devToolMatrixRow" for="spawnUpgradeBaseCostInput">
+              <span>Spawn</span>
+              <input id="spawnUpgradeBaseCostInput" type="number" min="0" max="300" step="1" value="20" />
+              <input id="spawnUpgradeCostGrowthInput" type="number" min="1" max="3" step="0.05" value="1.5" />
+              <select id="spawnUpgradeCostFormulaSelect">
+                <option value="exp" selected>Exp</option>
+                <option value="linear">Linear</option>
+                <option value="hybrid">Hybrid</option>
+              </select>
+            </label>
+          </div>
+          <label class="devToolRow" for="killBountyGoldRange">
+            <span>Kill Gold</span>
+            <input id="killBountyGoldRange" type="range" min="0" max="50" step="1" value="10" />
+            <strong id="killBountyGoldValue">10</strong>
+          </label>
+          <label class="devToolRow" for="shrineGoldPerSecondRange">
+            <span>Shrine Gold/s</span>
+            <input id="shrineGoldPerSecondRange" type="range" min="0" max="20" step="1" value="2" />
+            <strong id="shrineGoldPerSecondValue">2</strong>
+          </label>
+        </details>
       </div>
       <div id="upgradeHud">
         <div class="upgradeColumn" id="leftUpgradeColumn">
@@ -106,6 +234,45 @@
           <button id="rightUpgradeSpawnBtn" type="button">Spawn +1</button>
         </div>
       </div>
+      <section id="battleTestPanel">
+        <h2>AI Battle Test</h2>
+        <label class="devToolRow" for="testLeftStrategy">
+          <span>Blue AI</span>
+          <select id="testLeftStrategy">
+            <option value="none">None</option>
+            <option value="damage-only">Damage Only</option>
+            <option value="health-only">Health Only</option>
+            <option value="spawn-only">Spawn Only</option>
+            <option value="balanced">Balanced</option>
+            <optgroup label="Double Trouble">
+              <option value="damage-health">D + HP</option>
+              <option value="damage-spawn">D + Spawn</option>
+              <option value="health-spawn">HP + Spawn</option>
+            </optgroup>
+          </select>
+        </label>
+        <label class="devToolRow" for="testRightStrategy">
+          <span>Red AI</span>
+          <select id="testRightStrategy">
+            <option value="none">None</option>
+            <option value="damage-only">Damage Only</option>
+            <option value="health-only">Health Only</option>
+            <option value="spawn-only">Spawn Only</option>
+            <option value="balanced" selected>Balanced</option>
+            <optgroup label="Double Trouble">
+              <option value="damage-health">D + HP</option>
+              <option value="damage-spawn">D + Spawn</option>
+              <option value="health-spawn">HP + Spawn</option>
+            </optgroup>
+          </select>
+        </label>
+        <label class="devToolRow" for="testMatchCount">
+          <span>Matches</span>
+          <input id="testMatchCount" type="number" min="1" max="100" step="1" value="30" />
+        </label>
+        <button id="runBattleTestBtn" type="button">Run Tests</button>
+        <div id="battleTestResults"></div>
+      </section>
       <div id="selectionHud">
         <h2>Selection</h2>
         <div id="selectionInfo">Click a unit or structure to inspect stats.</div>

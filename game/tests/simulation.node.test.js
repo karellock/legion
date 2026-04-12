@@ -115,15 +115,122 @@ runTest('economy values can be updated at runtime', () => {
     upgradeBaseCost: 35,
     killBountyGold: 14,
     shrineGoldPerSecond: 5,
+    upgradeCostGrowth: 1.25,
   });
 
   assert(result.upgradeBaseCost === 35, 'upgrade base cost should update at runtime');
   assert(result.killBountyGold === 14, 'kill bounty gold should update at runtime');
   assert(result.shrineGoldPerSecond === 5, 'shrine gold income should update at runtime');
+  assert(result.upgradeCostGrowth === 1.25, 'upgrade cost growth should update at runtime');
   assert(simulation.constants.UPGRADE_BASE_COST === 35, 'upgrade base cost constant should be updated');
   assert(simulation.constants.KILL_BOUNTY_GOLD === 14, 'kill bounty constant should be updated');
   assert(simulation.constants.SHRINE_GOLD_PER_SECOND === 5, 'shrine income constant should be updated');
+  assert(simulation.constants.UPGRADE_COST_GROWTH === 1.25, 'upgrade cost growth constant should be updated');
   assert(simulation.getUpgradeSnapshot().left.nextDamageCost === 35, 'next upgrade cost should reflect updated base cost');
+});
+
+runTest('per-upgrade base cost and growth can be updated independently', () => {
+  const simulation = createSimulation();
+
+  const result = simulation.setEconomyValues({
+    upgradeDamageBaseCost: 22,
+    upgradeDamageCostGrowth: 1.3,
+    upgradeHealthBaseCost: 30,
+    upgradeHealthCostGrowth: 1.15,
+    upgradeSpawnBaseCost: 40,
+    upgradeSpawnCostGrowth: 1.5,
+  });
+
+  assert(result.upgradeDamageBaseCost === 22, 'damage base cost should update independently');
+  assert(result.upgradeDamageCostGrowth === 1.3, 'damage growth should update independently');
+  assert(result.upgradeHealthBaseCost === 30, 'health base cost should update independently');
+  assert(result.upgradeHealthCostGrowth === 1.15, 'health growth should update independently');
+  assert(result.upgradeSpawnBaseCost === 40, 'spawn base cost should update independently');
+  assert(result.upgradeSpawnCostGrowth === 1.5, 'spawn growth should update independently');
+
+  const snapshot = simulation.getUpgradeSnapshot();
+  assert(snapshot.left.nextDamageCost === 22, 'damage next cost should use damage base cost');
+  assert(snapshot.left.nextHealthCost === 30, 'health next cost should use health base cost');
+  assert(snapshot.left.nextSpawnCost === 40, 'spawn next cost should use spawn base cost');
+
+  simulation.state.leftGold = 500;
+  simulation.buyUpgrade('left', 'damage');
+  simulation.buyUpgrade('left', 'health');
+  simulation.buyUpgrade('left', 'spawn');
+
+  const afterOneEach = simulation.getUpgradeSnapshot().left;
+  assert(afterOneEach.nextDamageCost === Math.round(22 * 1.3), 'damage level 2 cost should use damage growth');
+  assert(afterOneEach.nextHealthCost === Math.round(30 * 1.15), 'health level 2 cost should use health growth');
+  assert(afterOneEach.nextSpawnCost === Math.round(40 * 1.5), 'spawn level 2 cost should use spawn growth');
+});
+
+runTest('damage and health upgrade cost formulas support linear and hybrid modes', () => {
+  const simulation = createSimulation();
+
+  simulation.setEconomyValues({
+    upgradeDamageBaseCost: 20,
+    upgradeDamageCostGrowth: 1.5,
+    upgradeDamageCostFormula: 'linear',
+    upgradeHealthBaseCost: 30,
+    upgradeHealthCostGrowth: 1.4,
+    upgradeHealthCostFormula: 'hybrid',
+  });
+
+  simulation.state.leftGold = 10000;
+
+  const d1 = simulation.buyUpgrade('left', 'damage');
+  const d2 = simulation.buyUpgrade('left', 'damage');
+  const d3 = simulation.buyUpgrade('left', 'damage');
+
+  assert(d1.cost === 20, 'linear damage level 1 should cost base value');
+  assert(d2.cost === 30, 'linear damage level 2 should add a fixed growth step');
+  assert(d3.cost === 40, 'linear damage level 3 should keep same delta');
+
+  const h1 = simulation.buyUpgrade('left', 'health');
+  const h2 = simulation.buyUpgrade('left', 'health');
+
+  const healthLinearL2 = 30 * (1 + (1.4 - 1) * 1);
+  const healthExpL2 = 30 * (1.4 ** 1);
+  const healthHybridL2 = Math.round((healthLinearL2 + healthExpL2) / 2);
+
+  assert(h1.cost === 30, 'hybrid health level 1 should equal base value');
+  assert(h2.cost === healthHybridL2, 'hybrid health level 2 should average linear and exponential costs');
+});
+
+runTest('structure combat values can be updated at runtime', () => {
+  const simulation = createSimulation();
+
+  const result = simulation.setStructureCombatValues({
+    towerDamage: 31,
+    baseDamage: 18,
+    towerAttackRate: 0.8,
+    baseAttackRate: 0.6,
+  });
+
+  assert(result.towerDamage === 31, 'tower base damage should update at runtime');
+  assert(result.baseDamage === 18, 'base base damage should update at runtime');
+  assert(result.towerAttackRate === 0.8, 'tower fire rate should update at runtime');
+  assert(result.baseAttackRate === 0.6, 'base fire rate should update at runtime');
+  assert(simulation.state.leftTower.attackCooldown === simulation.constants.TICK_RATE / 0.8,
+    'tower cooldown should be recalculated from new fire rate');
+  assert(simulation.state.leftBase.attackCooldown === simulation.constants.TICK_RATE / 0.6,
+    'base cooldown should be recalculated from new fire rate');
+});
+
+runTest('protection windows can be updated at runtime', () => {
+  const simulation = createSimulation();
+
+  const result = simulation.setProtectionWindows({
+    structureDamageGraceSeconds: 33,
+    baseDamageGraceSeconds: 77,
+  });
+
+  assert(result.structureDamageGraceSeconds === 33, 'tower grace seconds should update at runtime');
+  assert(result.baseDamageGraceSeconds === 77, 'base grace seconds should update at runtime');
+  assert(simulation.constants.STRUCTURE_DAMAGE_GRACE_TICKS === simulation.constants.TICK_RATE * 33,
+    'tower grace ticks should match updated seconds');
+  assert(simulation.constants.BASE_DAMAGE_GRACE_TICKS === simulation.constants.TICK_RATE * 77,
+    'base grace ticks should match updated seconds');
 });
 
 runTest('peons spawn with symmetric HP on both sides', () => {
@@ -360,7 +467,7 @@ runTest('melee attackers avoid lethal overkill when another target is available'
 
   const leftA = simulation.addPeon('left', 390, 200);
   const leftB = simulation.addPeon('left', 392, 200);
-  const rightWeak = simulation.addPeon('right', 400, 200, { health: 10, maxHealth: 10 });
+  const rightWeak = simulation.addPeon('right', 400, 200, { health: 9, maxHealth: 9 });
   const rightStrong = simulation.addPeon('right', 404, 200, { health: 100, maxHealth: 100 });
   makeReady(leftA);
   makeReady(leftB);
@@ -450,7 +557,7 @@ runTest('buyUpgrade rejects purchase when side lacks enough gold', () => {
   assert(simulation.state.leftUpgrades.damageLevel === 0, 'damage level should remain unchanged after failed purchase');
 });
 
-runTest('upgrade costs double each level and spend gold deterministically', () => {
+runTest('upgrade costs grow by configurable multiplier and spend gold deterministically', () => {
   const simulation = createSimulation();
   simulation.clearPeons();
   disableAutoSpawns(simulation);
@@ -458,12 +565,12 @@ runTest('upgrade costs double each level and spend gold deterministically', () =
   const firstExpected = Math.round(
     simulation.constants.UPGRADE_BASE_COST
       * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
-      * (2 ** 0)
+      * (simulation.constants.UPGRADE_COST_GROWTH ** 0)
   );
   const secondExpected = Math.round(
     simulation.constants.UPGRADE_BASE_COST
       * simulation.constants.UPGRADE_DAMAGE_COST_MULTIPLIER
-      * (2 ** 1)
+      * (simulation.constants.UPGRADE_COST_GROWTH ** 1)
   );
 
   simulation.state.leftGold = firstExpected + secondExpected + 50;
@@ -473,7 +580,7 @@ runTest('upgrade costs double each level and spend gold deterministically', () =
   assert(first.ok === true, 'first upgrade purchase should succeed');
   assert(second.ok === true, 'second upgrade purchase should succeed');
   assert(first.cost === firstExpected, 'first damage upgrade cost should include configured damage multiplier');
-  assert(second.cost === secondExpected, 'second upgrade cost should double from first level cost');
+  assert(second.cost === secondExpected, 'second upgrade cost should follow configured growth multiplier');
   assert(simulation.state.leftGold === 50, 'gold should be reduced by cumulative costs');
   assert(simulation.state.leftUpgrades.damageLevel === 2, 'damage upgrade level should increment per purchase');
 });

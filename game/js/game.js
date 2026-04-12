@@ -7,13 +7,18 @@ const simulation = window.createSimulation({
   baseDamageGraceSeconds: 45,
 });
 const { constants, layout, state } = simulation;
-const GAME_VERSION = '0.0.1';
+const GAME_VERSION = '0.0.2';
+const SETTINGS_KEY = 'legion-dev-settings';
+const SETTINGS_DEFAULTS_KEY = `legion-dev-settings-defaults-${GAME_VERSION}`;
 const BASE_CANVAS_WIDTH = canvas.width;
 const BASE_CANVAS_HEIGHT = canvas.height;
 const TURN_SMOOTHING = 0.22;
 const debugFlags = {
   showVisionRanges: false,
+  showDamageNumbers: false,
 };
+const damageNumberEffects = [];
+const DAMAGE_NUMBER_MAX_AGE = 50;
 const upgradeButtons = [];
 const upgradeSummaryEls = {
   left: null,
@@ -31,12 +36,41 @@ let spawnPaddingRangeEl = null;
 let spawnPaddingValueEl = null;
 let spawnSlotCountRangeEl = null;
 let spawnSlotCountValueEl = null;
+let spawnIntervalRangeEl = null;
+let spawnIntervalValueEl = null;
+let peonSpeedRangeEl = null;
+let peonSpeedValueEl = null;
+let peonHpRangeEl = null;
+let peonHpValueEl = null;
+let peonDamageRangeEl = null;
+let peonDamageValueEl = null;
+let peonAttackRateRangeEl = null;
+let peonAttackRateValueEl = null;
 let towerDamagePerMinuteRangeEl = null;
 let towerDamagePerMinuteValueEl = null;
+let towerDamageRangeEl = null;
+let towerDamageValueEl = null;
+let towerAttackRateRangeEl = null;
+let towerAttackRateValueEl = null;
 let baseDamagePerMinuteRangeEl = null;
 let baseDamagePerMinuteValueEl = null;
-let upgradeBaseCostRangeEl = null;
-let upgradeBaseCostValueEl = null;
+let baseDamageRangeEl = null;
+let baseDamageValueEl = null;
+let baseAttackRateRangeEl = null;
+let baseAttackRateValueEl = null;
+let structureGraceSecondsRangeEl = null;
+let structureGraceSecondsValueEl = null;
+let baseGraceSecondsRangeEl = null;
+let baseGraceSecondsValueEl = null;
+let damageUpgradeBaseCostInputEl = null;
+let damageUpgradeCostGrowthInputEl = null;
+let damageUpgradeCostFormulaSelectEl = null;
+let healthUpgradeBaseCostInputEl = null;
+let healthUpgradeCostGrowthInputEl = null;
+let healthUpgradeCostFormulaSelectEl = null;
+let spawnUpgradeBaseCostInputEl = null;
+let spawnUpgradeCostGrowthInputEl = null;
+let spawnUpgradeCostFormulaSelectEl = null;
 let killBountyGoldRangeEl = null;
 let killBountyGoldValueEl = null;
 let shrineGoldPerSecondRangeEl = null;
@@ -57,6 +91,69 @@ let lastFrameTime = 0;
 let tickDelta = 0;
 let renderScaleX = 1;
 let renderScaleY = 1;
+
+function buildSettingsPayloadFromConstants() {
+  return {
+    spawnPadding: constants.SPAWN_SLOT_PADDING,
+    spawnSlotCount: constants.SPAWN_SLOT_COUNT,
+    spawnIntervalSeconds: constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE,
+    peonSpeed: constants.PEON_SPEED,
+    peonHp: constants.PEON_HP,
+    peonDamage: constants.PEON_DAMAGE,
+    peonAttackRate: constants.PEON_ATTACK_RATE,
+    towerDamagePerMinute: constants.TOWER_DAMAGE_PER_MINUTE,
+    baseDamagePerMinute: constants.BASE_DAMAGE_PER_MINUTE,
+    towerDamage: constants.TOWER_DAMAGE,
+    baseDamage: constants.BASE_DAMAGE,
+    towerAttackRate: constants.TOWER_ATTACK_RATE,
+    baseAttackRate: constants.BASE_ATTACK_RATE,
+    structureGraceSeconds: constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+    baseGraceSeconds: constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+    upgradeDamageBaseCost: constants.UPGRADE_DAMAGE_BASE_COST,
+    upgradeDamageCostGrowth: constants.UPGRADE_DAMAGE_COST_GROWTH,
+    upgradeDamageCostFormula: constants.UPGRADE_DAMAGE_COST_FORMULA,
+    upgradeHealthBaseCost: constants.UPGRADE_HEALTH_BASE_COST,
+    upgradeHealthCostGrowth: constants.UPGRADE_HEALTH_COST_GROWTH,
+    upgradeHealthCostFormula: constants.UPGRADE_HEALTH_COST_FORMULA,
+    upgradeSpawnBaseCost: constants.UPGRADE_SPAWN_BASE_COST,
+    upgradeSpawnCostGrowth: constants.UPGRADE_SPAWN_COST_GROWTH,
+    upgradeSpawnCostFormula: constants.UPGRADE_SPAWN_COST_FORMULA,
+    killBountyGold: constants.KILL_BOUNTY_GOLD,
+    shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
+  };
+}
+
+function parseStoredSettings(rawValue) {
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    return typeof parsed === 'object' && parsed !== null ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function ensureVersionDefaultsSaved() {
+  if (localStorage.getItem(SETTINGS_DEFAULTS_KEY)) {
+    return;
+  }
+
+  const savedSettings = parseStoredSettings(localStorage.getItem(SETTINGS_KEY));
+  const defaults = savedSettings || buildSettingsPayloadFromConstants();
+  localStorage.setItem(SETTINGS_DEFAULTS_KEY, JSON.stringify(defaults));
+}
+
+function getSavedOrDefaultSettings() {
+  const savedSettings = parseStoredSettings(localStorage.getItem(SETTINGS_KEY));
+  if (savedSettings) {
+    return savedSettings;
+  }
+
+  return parseStoredSettings(localStorage.getItem(SETTINGS_DEFAULTS_KEY));
+}
 
 window.legionDebug = {
   toggleVisionRanges() {
@@ -98,6 +195,17 @@ window.legionDebug = {
     updateBalanceConfigHud();
     return result;
   },
+  setSpawnTiming(spawnIntervalSeconds) {
+    const result = simulation.setSpawnTiming({ spawnIntervalSeconds });
+    updateBalanceConfigHud();
+    return result;
+  },
+  setPeonValues(peonSpeed, peonHp, peonDamage, peonAttackRate) {
+    const result = simulation.setPeonValues({ peonSpeed, peonHp, peonDamage, peonAttackRate });
+    updateUpgradeHud();
+    updateBalanceConfigHud();
+    return result;
+  },
   setStructureDamageScaling(towerDamagePerMinute, baseDamagePerMinute) {
     const result = simulation.setStructureDamageScaling({
       towerDamagePerMinute,
@@ -106,12 +214,44 @@ window.legionDebug = {
     updateBalanceConfigHud();
     return result;
   },
-  setEconomyValues(killBountyGold, shrineGoldPerSecond, upgradeBaseCost) {
-    const result = simulation.setEconomyValues({
-      killBountyGold,
-      shrineGoldPerSecond,
-      upgradeBaseCost,
+  setStructureCombatValues(towerDamage, baseDamage, towerAttackRate, baseAttackRate) {
+    const result = simulation.setStructureCombatValues({
+      towerDamage,
+      baseDamage,
+      towerAttackRate,
+      baseAttackRate,
     });
+    updateUpgradeHud();
+    updateBalanceConfigHud();
+    return result;
+  },
+  setProtectionWindows(structureDamageGraceSeconds, baseDamageGraceSeconds) {
+    const result = simulation.setProtectionWindows({
+      structureDamageGraceSeconds,
+      baseDamageGraceSeconds,
+    });
+    updateBalanceConfigHud();
+    return result;
+  },
+  setEconomyValues(...args) {
+    const payload = typeof args[0] === 'object' && args[0] !== null
+      ? args[0]
+      : {
+          killBountyGold: args[0],
+          shrineGoldPerSecond: args[1],
+          upgradeBaseCost: args[2],
+          upgradeCostGrowth: args[3],
+          upgradeDamageBaseCost: args[4],
+          upgradeDamageCostGrowth: args[5],
+          upgradeHealthBaseCost: args[6],
+          upgradeHealthCostGrowth: args[7],
+          upgradeSpawnBaseCost: args[8],
+          upgradeSpawnCostGrowth: args[9],
+          upgradeDamageCostFormula: args[10],
+          upgradeHealthCostFormula: args[11],
+          upgradeSpawnCostFormula: args[12],
+        };
+    const result = simulation.setEconomyValues(payload);
     updateUpgradeHud();
     updateBalanceConfigHud();
     return result;
@@ -217,6 +357,13 @@ if (downloadLogsButton) {
   downloadLogsButton.addEventListener('click', downloadRunLogs);
 }
 
+const openTournamentButton = document.getElementById('openTournamentBtn');
+if (openTournamentButton) {
+  openTournamentButton.addEventListener('click', () => {
+    window.location.href = 'tournament.html';
+  });
+}
+
 function getMatchOutcome() {
   const leftDestroyed = state.leftBase?.isDestroyed();
   const rightDestroyed = state.rightBase?.isDestroyed();
@@ -265,6 +412,7 @@ function renderMatchResultPanel(outcome) {
     `<strong>Tower HP:</strong> Blue ${Math.max(0, state.leftTower.health)} / Red ${Math.max(0, state.rightTower.health)}`,
     `<strong>HP Lost:</strong> Blue ${state.leftHpLost} / Red ${state.rightHpLost}`,
     `<strong>Gold:</strong> Blue ${state.leftGold} / Red ${state.rightGold}`,
+    `<strong>Total Gold Earned:</strong> Blue ${state.leftTotalGold} / Red ${state.rightTotalGold}`,
     `<strong>Alive Peons:</strong> Blue ${leftPeons} / Red ${rightPeons}`,
     `<strong>Upgrades:</strong> Blue D${upgradeSnapshot.left.damageLevel} H${upgradeSnapshot.left.healthLevel} S${upgradeSnapshot.left.spawnLevel} | Red D${upgradeSnapshot.right.damageLevel} H${upgradeSnapshot.right.healthLevel} S${upgradeSnapshot.right.spawnLevel}`,
   ].join('<br>');
@@ -448,9 +596,22 @@ function updateBalanceConfigHud() {
   const liveBaseDamage = (constants.BASE_DAMAGE + elapsedMinutes * constants.BASE_DAMAGE_PER_MINUTE).toFixed(1);
   const towerRamp = constants.TOWER_DAMAGE_PER_MINUTE.toFixed(1);
   const baseRamp = constants.BASE_DAMAGE_PER_MINUTE.toFixed(1);
-  const goldSummary = `Gold U${constants.UPGRADE_BASE_COST} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
+  const shortFormula = formula => {
+    if (formula === 'linear') {
+      return 'L';
+    }
 
-  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (space ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Struct DMG T${liveTowerDamage} B${liveBaseDamage}`;
+    if (formula === 'hybrid') {
+      return 'H';
+    }
+
+    return 'E';
+  };
+  const goldSummary = `Gold D${constants.UPGRADE_DAMAGE_BASE_COST}x${constants.UPGRADE_DAMAGE_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_DAMAGE_COST_FORMULA)} H${constants.UPGRADE_HEALTH_BASE_COST}x${constants.UPGRADE_HEALTH_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_HEALTH_COST_FORMULA)} S${constants.UPGRADE_SPAWN_BASE_COST}x${constants.UPGRADE_SPAWN_COST_GROWTH.toFixed(2)}${shortFormula(constants.UPGRADE_SPAWN_COST_FORMULA)} K${constants.KILL_BOUNTY_GOLD} S${constants.SHRINE_GOLD_PER_SECOND}/s`;
+  const structureSummary = `Struct T${constants.TOWER_DAMAGE}@${constants.TOWER_ATTACK_RATE.toFixed(2)} B${constants.BASE_DAMAGE}@${constants.BASE_ATTACK_RATE.toFixed(2)}`;
+  const peonSummary = `Peon SPD${constants.PEON_SPEED.toFixed(0)} HP${constants.PEON_HP} DMG${constants.PEON_DAMAGE} AR${constants.PEON_ATTACK_RATE.toFixed(2)} Spawn ${ (constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE).toFixed(2)}s`;
+
+  balanceConfigEl.textContent = `Balance: D+${constants.UPGRADE_DAMAGE_PER_LEVEL} H+${constants.UPGRADE_HEALTH_PER_LEVEL} S+${constants.UPGRADE_SPAWN_COUNT_PER_LEVEL} | ${goldSummary} | ${structureSummary} | ${peonSummary} | Grace S${structureGraceSeconds}s B${baseGraceSeconds}s | Spawn Y ${spawnMinY}-${spawnMaxY} (space ${constants.SPAWN_SLOT_PADDING}, slots ${constants.SPAWN_SLOT_COUNT}) | Ramp T+${towerRamp}/m B+${baseRamp}/m | Live T${liveTowerDamage} B${liveBaseDamage}`;
 }
 
 function setupDevControls() {
@@ -462,12 +623,41 @@ function setupDevControls() {
   spawnPaddingValueEl = document.getElementById('spawnPaddingValue');
   spawnSlotCountRangeEl = document.getElementById('spawnSlotCountRange');
   spawnSlotCountValueEl = document.getElementById('spawnSlotCountValue');
+  spawnIntervalRangeEl = document.getElementById('spawnIntervalRange');
+  spawnIntervalValueEl = document.getElementById('spawnIntervalValue');
+  peonSpeedRangeEl = document.getElementById('peonSpeedRange');
+  peonSpeedValueEl = document.getElementById('peonSpeedValue');
+  peonHpRangeEl = document.getElementById('peonHpRange');
+  peonHpValueEl = document.getElementById('peonHpValue');
+  peonDamageRangeEl = document.getElementById('peonDamageRange');
+  peonDamageValueEl = document.getElementById('peonDamageValue');
+  peonAttackRateRangeEl = document.getElementById('peonAttackRateRange');
+  peonAttackRateValueEl = document.getElementById('peonAttackRateValue');
   towerDamagePerMinuteRangeEl = document.getElementById('towerDamagePerMinuteRange');
   towerDamagePerMinuteValueEl = document.getElementById('towerDamagePerMinuteValue');
+  towerDamageRangeEl = document.getElementById('towerDamageRange');
+  towerDamageValueEl = document.getElementById('towerDamageValue');
+  towerAttackRateRangeEl = document.getElementById('towerAttackRateRange');
+  towerAttackRateValueEl = document.getElementById('towerAttackRateValue');
   baseDamagePerMinuteRangeEl = document.getElementById('baseDamagePerMinuteRange');
   baseDamagePerMinuteValueEl = document.getElementById('baseDamagePerMinuteValue');
-  upgradeBaseCostRangeEl = document.getElementById('upgradeBaseCostRange');
-  upgradeBaseCostValueEl = document.getElementById('upgradeBaseCostValue');
+  baseDamageRangeEl = document.getElementById('baseDamageRange');
+  baseDamageValueEl = document.getElementById('baseDamageValue');
+  baseAttackRateRangeEl = document.getElementById('baseAttackRateRange');
+  baseAttackRateValueEl = document.getElementById('baseAttackRateValue');
+  structureGraceSecondsRangeEl = document.getElementById('structureGraceSecondsRange');
+  structureGraceSecondsValueEl = document.getElementById('structureGraceSecondsValue');
+  baseGraceSecondsRangeEl = document.getElementById('baseGraceSecondsRange');
+  baseGraceSecondsValueEl = document.getElementById('baseGraceSecondsValue');
+  damageUpgradeBaseCostInputEl = document.getElementById('damageUpgradeBaseCostInput');
+  damageUpgradeCostGrowthInputEl = document.getElementById('damageUpgradeCostGrowthInput');
+  damageUpgradeCostFormulaSelectEl = document.getElementById('damageUpgradeCostFormulaSelect');
+  healthUpgradeBaseCostInputEl = document.getElementById('healthUpgradeBaseCostInput');
+  healthUpgradeCostGrowthInputEl = document.getElementById('healthUpgradeCostGrowthInput');
+  healthUpgradeCostFormulaSelectEl = document.getElementById('healthUpgradeCostFormulaSelect');
+  spawnUpgradeBaseCostInputEl = document.getElementById('spawnUpgradeBaseCostInput');
+  spawnUpgradeCostGrowthInputEl = document.getElementById('spawnUpgradeCostGrowthInput');
+  spawnUpgradeCostFormulaSelectEl = document.getElementById('spawnUpgradeCostFormulaSelect');
   killBountyGoldRangeEl = document.getElementById('killBountyGoldRange');
   killBountyGoldValueEl = document.getElementById('killBountyGoldValue');
   shrineGoldPerSecondRangeEl = document.getElementById('shrineGoldPerSecondRange');
@@ -515,13 +705,67 @@ function setupDevControls() {
     if (spawnSlotCountRangeEl) {
       spawnSlotCountRangeEl.value = String(constants.SPAWN_SLOT_COUNT);
     }
+    if (spawnIntervalRangeEl) {
+      spawnIntervalRangeEl.value = (constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE).toFixed(2);
+    }
+    if (spawnIntervalValueEl) {
+      spawnIntervalValueEl.textContent = (constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE).toFixed(2);
+    }
   };
 
   const applySpawnLayoutFromControls = () => {
     const nextPadding = spawnPaddingRangeEl ? Number(spawnPaddingRangeEl.value) : constants.SPAWN_SLOT_PADDING;
     const nextSlotCount = spawnSlotCountRangeEl ? Number(spawnSlotCountRangeEl.value) : constants.SPAWN_SLOT_COUNT;
+    const nextSpawnIntervalSeconds = spawnIntervalRangeEl
+      ? Number(spawnIntervalRangeEl.value)
+      : constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE;
     simulation.setSpawnLayout({ padding: nextPadding, slotCount: nextSlotCount });
+    simulation.setSpawnTiming({ spawnIntervalSeconds: nextSpawnIntervalSeconds });
     syncSpawnControls();
+    updateBalanceConfigHud();
+  };
+
+  const syncPeonControls = () => {
+    if (peonSpeedRangeEl) {
+      peonSpeedRangeEl.value = String(constants.PEON_SPEED);
+    }
+    if (peonSpeedValueEl) {
+      peonSpeedValueEl.textContent = String(Math.round(constants.PEON_SPEED));
+    }
+    if (peonHpRangeEl) {
+      peonHpRangeEl.value = String(constants.PEON_HP);
+    }
+    if (peonHpValueEl) {
+      peonHpValueEl.textContent = String(Math.round(constants.PEON_HP));
+    }
+    if (peonDamageRangeEl) {
+      peonDamageRangeEl.value = String(constants.PEON_DAMAGE);
+    }
+    if (peonDamageValueEl) {
+      peonDamageValueEl.textContent = String(Math.round(constants.PEON_DAMAGE));
+    }
+    if (peonAttackRateRangeEl) {
+      peonAttackRateRangeEl.value = String(constants.PEON_ATTACK_RATE);
+    }
+    if (peonAttackRateValueEl) {
+      peonAttackRateValueEl.textContent = constants.PEON_ATTACK_RATE.toFixed(2);
+    }
+  };
+
+  const applyPeonControls = () => {
+    const nextPeonSpeed = peonSpeedRangeEl ? Number(peonSpeedRangeEl.value) : constants.PEON_SPEED;
+    const nextPeonHp = peonHpRangeEl ? Number(peonHpRangeEl.value) : constants.PEON_HP;
+    const nextPeonDamage = peonDamageRangeEl ? Number(peonDamageRangeEl.value) : constants.PEON_DAMAGE;
+    const nextPeonAttackRate = peonAttackRateRangeEl ? Number(peonAttackRateRangeEl.value) : constants.PEON_ATTACK_RATE;
+
+    simulation.setPeonValues({
+      peonSpeed: nextPeonSpeed,
+      peonHp: nextPeonHp,
+      peonDamage: nextPeonDamage,
+      peonAttackRate: nextPeonAttackRate,
+    });
+
+    syncPeonControls();
     updateBalanceConfigHud();
   };
 
@@ -538,6 +782,84 @@ function setupDevControls() {
     if (baseDamagePerMinuteRangeEl) {
       baseDamagePerMinuteRangeEl.value = String(constants.BASE_DAMAGE_PER_MINUTE);
     }
+  };
+
+  const syncStructureCombatControls = () => {
+    if (towerDamageValueEl) {
+      towerDamageValueEl.textContent = String(Math.round(constants.TOWER_DAMAGE));
+    }
+    if (baseDamageValueEl) {
+      baseDamageValueEl.textContent = String(Math.round(constants.BASE_DAMAGE));
+    }
+    if (towerAttackRateValueEl) {
+      towerAttackRateValueEl.textContent = constants.TOWER_ATTACK_RATE.toFixed(2);
+    }
+    if (baseAttackRateValueEl) {
+      baseAttackRateValueEl.textContent = constants.BASE_ATTACK_RATE.toFixed(2);
+    }
+    if (towerDamageRangeEl) {
+      towerDamageRangeEl.value = String(constants.TOWER_DAMAGE);
+    }
+    if (baseDamageRangeEl) {
+      baseDamageRangeEl.value = String(constants.BASE_DAMAGE);
+    }
+    if (towerAttackRateRangeEl) {
+      towerAttackRateRangeEl.value = String(constants.TOWER_ATTACK_RATE);
+    }
+    if (baseAttackRateRangeEl) {
+      baseAttackRateRangeEl.value = String(constants.BASE_ATTACK_RATE);
+    }
+  };
+
+  const applyStructureCombatFromControls = () => {
+    const nextTowerDamage = towerDamageRangeEl ? Number(towerDamageRangeEl.value) : constants.TOWER_DAMAGE;
+    const nextBaseDamage = baseDamageRangeEl ? Number(baseDamageRangeEl.value) : constants.BASE_DAMAGE;
+    const nextTowerAttackRate = towerAttackRateRangeEl ? Number(towerAttackRateRangeEl.value) : constants.TOWER_ATTACK_RATE;
+    const nextBaseAttackRate = baseAttackRateRangeEl ? Number(baseAttackRateRangeEl.value) : constants.BASE_ATTACK_RATE;
+
+    simulation.setStructureCombatValues({
+      towerDamage: nextTowerDamage,
+      baseDamage: nextBaseDamage,
+      towerAttackRate: nextTowerAttackRate,
+      baseAttackRate: nextBaseAttackRate,
+    });
+
+    syncStructureCombatControls();
+    updateBalanceConfigHud();
+  };
+
+  const syncProtectionControls = () => {
+    const structureGraceSeconds = (constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE).toFixed(0);
+    const baseGraceSeconds = (constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE).toFixed(0);
+    if (structureGraceSecondsValueEl) {
+      structureGraceSecondsValueEl.textContent = structureGraceSeconds;
+    }
+    if (baseGraceSecondsValueEl) {
+      baseGraceSecondsValueEl.textContent = baseGraceSeconds;
+    }
+    if (structureGraceSecondsRangeEl) {
+      structureGraceSecondsRangeEl.value = structureGraceSeconds;
+    }
+    if (baseGraceSecondsRangeEl) {
+      baseGraceSecondsRangeEl.value = baseGraceSeconds;
+    }
+  };
+
+  const applyProtectionFromControls = () => {
+    const nextStructureGraceSeconds = structureGraceSecondsRangeEl
+      ? Number(structureGraceSecondsRangeEl.value)
+      : constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE;
+    const nextBaseGraceSeconds = baseGraceSecondsRangeEl
+      ? Number(baseGraceSecondsRangeEl.value)
+      : constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE;
+
+    simulation.setProtectionWindows({
+      structureDamageGraceSeconds: nextStructureGraceSeconds,
+      baseDamageGraceSeconds: nextBaseGraceSeconds,
+    });
+
+    syncProtectionControls();
+    updateBalanceConfigHud();
   };
 
   const applyStructureDamageFromControls = () => {
@@ -558,17 +880,38 @@ function setupDevControls() {
   };
 
   const syncEconomyControls = () => {
-    if (upgradeBaseCostValueEl) {
-      upgradeBaseCostValueEl.textContent = String(constants.UPGRADE_BASE_COST);
+    if (damageUpgradeBaseCostInputEl) {
+      damageUpgradeBaseCostInputEl.value = String(constants.UPGRADE_DAMAGE_BASE_COST);
+    }
+    if (damageUpgradeCostGrowthInputEl) {
+      damageUpgradeCostGrowthInputEl.value = constants.UPGRADE_DAMAGE_COST_GROWTH.toFixed(2);
+    }
+    if (damageUpgradeCostFormulaSelectEl) {
+      damageUpgradeCostFormulaSelectEl.value = constants.UPGRADE_DAMAGE_COST_FORMULA;
+    }
+    if (healthUpgradeBaseCostInputEl) {
+      healthUpgradeBaseCostInputEl.value = String(constants.UPGRADE_HEALTH_BASE_COST);
+    }
+    if (healthUpgradeCostGrowthInputEl) {
+      healthUpgradeCostGrowthInputEl.value = constants.UPGRADE_HEALTH_COST_GROWTH.toFixed(2);
+    }
+    if (healthUpgradeCostFormulaSelectEl) {
+      healthUpgradeCostFormulaSelectEl.value = constants.UPGRADE_HEALTH_COST_FORMULA;
+    }
+    if (spawnUpgradeBaseCostInputEl) {
+      spawnUpgradeBaseCostInputEl.value = String(constants.UPGRADE_SPAWN_BASE_COST);
+    }
+    if (spawnUpgradeCostGrowthInputEl) {
+      spawnUpgradeCostGrowthInputEl.value = constants.UPGRADE_SPAWN_COST_GROWTH.toFixed(2);
+    }
+    if (spawnUpgradeCostFormulaSelectEl) {
+      spawnUpgradeCostFormulaSelectEl.value = constants.UPGRADE_SPAWN_COST_FORMULA;
     }
     if (killBountyGoldValueEl) {
       killBountyGoldValueEl.textContent = String(constants.KILL_BOUNTY_GOLD);
     }
     if (shrineGoldPerSecondValueEl) {
       shrineGoldPerSecondValueEl.textContent = String(constants.SHRINE_GOLD_PER_SECOND);
-    }
-    if (upgradeBaseCostRangeEl) {
-      upgradeBaseCostRangeEl.value = String(constants.UPGRADE_BASE_COST);
     }
     if (killBountyGoldRangeEl) {
       killBountyGoldRangeEl.value = String(constants.KILL_BOUNTY_GOLD);
@@ -579,9 +922,33 @@ function setupDevControls() {
   };
 
   const applyEconomyFromControls = () => {
-    const nextUpgradeBaseCost = upgradeBaseCostRangeEl
-      ? Number(upgradeBaseCostRangeEl.value)
-      : constants.UPGRADE_BASE_COST;
+    const nextDamageUpgradeBaseCost = damageUpgradeBaseCostInputEl
+      ? Number(damageUpgradeBaseCostInputEl.value)
+      : constants.UPGRADE_DAMAGE_BASE_COST;
+    const nextDamageUpgradeCostGrowth = damageUpgradeCostGrowthInputEl
+      ? Number(damageUpgradeCostGrowthInputEl.value)
+      : constants.UPGRADE_DAMAGE_COST_GROWTH;
+    const nextHealthUpgradeBaseCost = healthUpgradeBaseCostInputEl
+      ? Number(healthUpgradeBaseCostInputEl.value)
+      : constants.UPGRADE_HEALTH_BASE_COST;
+    const nextHealthUpgradeCostGrowth = healthUpgradeCostGrowthInputEl
+      ? Number(healthUpgradeCostGrowthInputEl.value)
+      : constants.UPGRADE_HEALTH_COST_GROWTH;
+    const nextSpawnUpgradeBaseCost = spawnUpgradeBaseCostInputEl
+      ? Number(spawnUpgradeBaseCostInputEl.value)
+      : constants.UPGRADE_SPAWN_BASE_COST;
+    const nextSpawnUpgradeCostGrowth = spawnUpgradeCostGrowthInputEl
+      ? Number(spawnUpgradeCostGrowthInputEl.value)
+      : constants.UPGRADE_SPAWN_COST_GROWTH;
+    const nextDamageUpgradeCostFormula = damageUpgradeCostFormulaSelectEl
+      ? damageUpgradeCostFormulaSelectEl.value
+      : constants.UPGRADE_DAMAGE_COST_FORMULA;
+    const nextHealthUpgradeCostFormula = healthUpgradeCostFormulaSelectEl
+      ? healthUpgradeCostFormulaSelectEl.value
+      : constants.UPGRADE_HEALTH_COST_FORMULA;
+    const nextSpawnUpgradeCostFormula = spawnUpgradeCostFormulaSelectEl
+      ? spawnUpgradeCostFormulaSelectEl.value
+      : constants.UPGRADE_SPAWN_COST_FORMULA;
     const nextKillBountyGold = killBountyGoldRangeEl
       ? Number(killBountyGoldRangeEl.value)
       : constants.KILL_BOUNTY_GOLD;
@@ -590,7 +957,15 @@ function setupDevControls() {
       : constants.SHRINE_GOLD_PER_SECOND;
 
     simulation.setEconomyValues({
-      upgradeBaseCost: nextUpgradeBaseCost,
+      upgradeDamageBaseCost: nextDamageUpgradeBaseCost,
+      upgradeDamageCostGrowth: nextDamageUpgradeCostGrowth,
+      upgradeHealthBaseCost: nextHealthUpgradeBaseCost,
+      upgradeHealthCostGrowth: nextHealthUpgradeCostGrowth,
+      upgradeSpawnBaseCost: nextSpawnUpgradeBaseCost,
+      upgradeSpawnCostGrowth: nextSpawnUpgradeCostGrowth,
+      upgradeDamageCostFormula: nextDamageUpgradeCostFormula,
+      upgradeHealthCostFormula: nextHealthUpgradeCostFormula,
+      upgradeSpawnCostFormula: nextSpawnUpgradeCostFormula,
       killBountyGold: nextKillBountyGold,
       shrineGoldPerSecond: nextShrineGoldPerSecond,
     });
@@ -608,6 +983,26 @@ function setupDevControls() {
     spawnSlotCountRangeEl.addEventListener('input', applySpawnLayoutFromControls);
   }
 
+  if (spawnIntervalRangeEl) {
+    spawnIntervalRangeEl.addEventListener('input', applySpawnLayoutFromControls);
+  }
+
+  if (peonSpeedRangeEl) {
+    peonSpeedRangeEl.addEventListener('input', applyPeonControls);
+  }
+
+  if (peonHpRangeEl) {
+    peonHpRangeEl.addEventListener('input', applyPeonControls);
+  }
+
+  if (peonDamageRangeEl) {
+    peonDamageRangeEl.addEventListener('input', applyPeonControls);
+  }
+
+  if (peonAttackRateRangeEl) {
+    peonAttackRateRangeEl.addEventListener('input', applyPeonControls);
+  }
+
   if (towerDamagePerMinuteRangeEl) {
     towerDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
   }
@@ -616,8 +1011,64 @@ function setupDevControls() {
     baseDamagePerMinuteRangeEl.addEventListener('input', applyStructureDamageFromControls);
   }
 
-  if (upgradeBaseCostRangeEl) {
-    upgradeBaseCostRangeEl.addEventListener('input', applyEconomyFromControls);
+  if (towerDamageRangeEl) {
+    towerDamageRangeEl.addEventListener('input', applyStructureCombatFromControls);
+  }
+
+  if (baseDamageRangeEl) {
+    baseDamageRangeEl.addEventListener('input', applyStructureCombatFromControls);
+  }
+
+  if (towerAttackRateRangeEl) {
+    towerAttackRateRangeEl.addEventListener('input', applyStructureCombatFromControls);
+  }
+
+  if (baseAttackRateRangeEl) {
+    baseAttackRateRangeEl.addEventListener('input', applyStructureCombatFromControls);
+  }
+
+  if (structureGraceSecondsRangeEl) {
+    structureGraceSecondsRangeEl.addEventListener('input', applyProtectionFromControls);
+  }
+
+  if (baseGraceSecondsRangeEl) {
+    baseGraceSecondsRangeEl.addEventListener('input', applyProtectionFromControls);
+  }
+
+  if (damageUpgradeBaseCostInputEl) {
+    damageUpgradeBaseCostInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (damageUpgradeCostGrowthInputEl) {
+    damageUpgradeCostGrowthInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (healthUpgradeBaseCostInputEl) {
+    healthUpgradeBaseCostInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (healthUpgradeCostGrowthInputEl) {
+    healthUpgradeCostGrowthInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (spawnUpgradeBaseCostInputEl) {
+    spawnUpgradeBaseCostInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (spawnUpgradeCostGrowthInputEl) {
+    spawnUpgradeCostGrowthInputEl.addEventListener('input', applyEconomyFromControls);
+  }
+
+  if (damageUpgradeCostFormulaSelectEl) {
+    damageUpgradeCostFormulaSelectEl.addEventListener('change', applyEconomyFromControls);
+  }
+
+  if (healthUpgradeCostFormulaSelectEl) {
+    healthUpgradeCostFormulaSelectEl.addEventListener('change', applyEconomyFromControls);
+  }
+
+  if (spawnUpgradeCostFormulaSelectEl) {
+    spawnUpgradeCostFormulaSelectEl.addEventListener('change', applyEconomyFromControls);
   }
 
   if (killBountyGoldRangeEl) {
@@ -629,8 +1080,82 @@ function setupDevControls() {
   }
 
   syncSpawnControls();
+  syncPeonControls();
   syncStructureDamageControls();
+  syncStructureCombatControls();
+  syncProtectionControls();
   syncEconomyControls();
+
+  const saveSettings = () => {
+    const settings = buildSettingsPayloadFromConstants();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_DEFAULTS_KEY, JSON.stringify(settings));
+  };
+
+  const loadSettings = () => {
+    const settings = getSavedOrDefaultSettings();
+    if (!settings) {
+      return;
+    }
+    simulation.setSpawnLayout({ padding: settings.spawnPadding, slotCount: settings.spawnSlotCount });
+    simulation.setSpawnTiming({
+      spawnIntervalSeconds: Number.isFinite(Number(settings.spawnIntervalSeconds))
+        ? settings.spawnIntervalSeconds
+        : constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE,
+    });
+    simulation.setPeonValues({
+      peonSpeed: Number.isFinite(Number(settings.peonSpeed)) ? settings.peonSpeed : constants.PEON_SPEED,
+      peonHp: Number.isFinite(Number(settings.peonHp)) ? settings.peonHp : constants.PEON_HP,
+      peonDamage: Number.isFinite(Number(settings.peonDamage)) ? settings.peonDamage : constants.PEON_DAMAGE,
+      peonAttackRate: Number.isFinite(Number(settings.peonAttackRate)) ? settings.peonAttackRate : constants.PEON_ATTACK_RATE,
+    });
+    simulation.setStructureDamageScaling({ towerDamagePerMinute: settings.towerDamagePerMinute, baseDamagePerMinute: settings.baseDamagePerMinute });
+    simulation.setStructureCombatValues({ towerDamage: settings.towerDamage, baseDamage: settings.baseDamage, towerAttackRate: settings.towerAttackRate, baseAttackRate: settings.baseAttackRate });
+    simulation.setProtectionWindows({ structureDamageGraceSeconds: settings.structureGraceSeconds, baseDamageGraceSeconds: settings.baseGraceSeconds });
+    simulation.setEconomyValues({
+      upgradeDamageBaseCost: settings.upgradeDamageBaseCost,
+      upgradeDamageCostGrowth: settings.upgradeDamageCostGrowth,
+      upgradeDamageCostFormula: settings.upgradeDamageCostFormula,
+      upgradeHealthBaseCost: settings.upgradeHealthBaseCost,
+      upgradeHealthCostGrowth: settings.upgradeHealthCostGrowth,
+      upgradeHealthCostFormula: settings.upgradeHealthCostFormula,
+      upgradeSpawnBaseCost: settings.upgradeSpawnBaseCost,
+      upgradeSpawnCostGrowth: settings.upgradeSpawnCostGrowth,
+      upgradeSpawnCostFormula: settings.upgradeSpawnCostFormula,
+      killBountyGold: settings.killBountyGold,
+      shrineGoldPerSecond: settings.shrineGoldPerSecond,
+    });
+    syncSpawnControls();
+    syncPeonControls();
+    syncStructureDamageControls();
+    syncStructureCombatControls();
+    syncProtectionControls();
+    syncEconomyControls();
+    updateBalanceConfigHud();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  };
+
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+  const loadSettingsBtn = document.getElementById('loadSettingsBtn');
+
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', saveSettings);
+  }
+
+  if (loadSettingsBtn) {
+    loadSettingsBtn.addEventListener('click', loadSettings);
+  }
+
+  const toggleDmgNumsBtn = document.getElementById('toggleDmgNumsBtn');
+  if (toggleDmgNumsBtn) {
+    const syncDmgNumsLabel = () => {
+      toggleDmgNumsBtn.textContent = `DMG Numbers: ${debugFlags.showDamageNumbers ? 'ON' : 'OFF'}`;
+    };
+    toggleDmgNumsBtn.addEventListener('click', () => {
+      debugFlags.showDamageNumbers = !debugFlags.showDamageNumbers;
+      syncDmgNumsLabel();
+    });
+  }
 
   canvas.addEventListener('click', event => {
     selectedEntityRef = pickEntityFromCanvasClick(event);
@@ -638,21 +1163,10 @@ function setupDevControls() {
   });
 }
 
-function nextUpgradeTypeForBot(side) {
-  const strategy = botStrategy[side];
-  const snapshot = simulation.getUpgradeSnapshot()[side];
-
-  if (strategy === 'damage-only') {
-    return 'damage';
-  }
-
-  if (strategy === 'health-only') {
-    return 'health';
-  }
-
-  if (strategy === 'spawn-only') {
-    return 'spawn';
-  }
+function getUpgradeTypeForStrategy(strategy, snapshot) {
+  if (strategy === 'damage-only') return 'damage';
+  if (strategy === 'health-only') return 'health';
+  if (strategy === 'spawn-only') return 'spawn';
 
   if (strategy === 'balanced') {
     const levels = [
@@ -660,19 +1174,23 @@ function nextUpgradeTypeForBot(side) {
       { type: 'health', level: snapshot.healthLevel },
       { type: 'spawn', level: snapshot.spawnLevel },
     ];
-
     levels.sort((a, b) => {
-      if (a.level !== b.level) {
-        return a.level - b.level;
-      }
-
+      if (a.level !== b.level) return a.level - b.level;
       return a.type.localeCompare(b.type);
     });
-
     return levels[0].type;
   }
 
+  if (strategy === 'damage-health') return snapshot.damageLevel <= snapshot.healthLevel ? 'damage' : 'health';
+  if (strategy === 'damage-spawn') return snapshot.damageLevel <= snapshot.spawnLevel ? 'damage' : 'spawn';
+  if (strategy === 'health-spawn') return snapshot.healthLevel <= snapshot.spawnLevel ? 'health' : 'spawn';
+
   return null;
+}
+
+function nextUpgradeTypeForBot(side) {
+  const snapshot = simulation.getUpgradeSnapshot()[side];
+  return getUpgradeTypeForStrategy(botStrategy[side], snapshot);
 }
 
 function runBotPurchasesForTick() {
@@ -787,11 +1305,11 @@ function updateUpgradeHud() {
   const snapshot = simulation.getUpgradeSnapshot();
 
   if (upgradeSummaryEls.left) {
-    upgradeSummaryEls.left.textContent = `Gold ${state.leftGold} | D${snapshot.left.damageLevel} H${snapshot.left.healthLevel} S${snapshot.left.spawnLevel}`;
+    upgradeSummaryEls.left.textContent = `Gold ${state.leftGold} (${state.leftTotalGold} earned) | D${snapshot.left.damageLevel} H${snapshot.left.healthLevel} S${snapshot.left.spawnLevel}`;
   }
 
   if (upgradeSummaryEls.right) {
-    upgradeSummaryEls.right.textContent = `Gold ${state.rightGold} | D${snapshot.right.damageLevel} H${snapshot.right.healthLevel} S${snapshot.right.spawnLevel}`;
+    upgradeSummaryEls.right.textContent = `Gold ${state.rightGold} (${state.rightTotalGold} earned) | D${snapshot.right.damageLevel} H${snapshot.right.healthLevel} S${snapshot.right.spawnLevel}`;
   }
 
   for (const entry of upgradeButtons) {
@@ -820,6 +1338,17 @@ function gameLoop(currentTime) {
 
   while (!isMatchPaused && tickDelta >= constants.TICK_DURATION) {
     simulation.tick();
+    if (debugFlags.showDamageNumbers) {
+      for (const popup of state.damagePopups) {
+        damageNumberEffects.push({
+          x: popup.x + (Math.random() - 0.5) * 8,
+          y: popup.y,
+          value: popup.amount,
+          targetSide: popup.targetSide,
+          age: 0,
+        });
+      }
+    }
     runBotPurchasesForTick();
     pauseForMatchEndIfNeeded();
     tickDelta -= constants.TICK_DURATION;
@@ -861,6 +1390,10 @@ function render() {
   }
 
   drawSlashEffects();
+
+  if (debugFlags.showDamageNumbers) {
+    drawDamageNumbers();
+  }
 
   drawDebugText();
   drawPauseBadge();
@@ -1344,6 +1877,31 @@ function drawSlashEffects() {
   }
 }
 
+function drawDamageNumbers() {
+  for (let i = damageNumberEffects.length - 1; i >= 0; i--) {
+    const effect = damageNumberEffects[i];
+    effect.y -= 0.45;
+    effect.age++;
+    if (effect.age >= DAMAGE_NUMBER_MAX_AGE) {
+      damageNumberEffects.splice(i, 1);
+      continue;
+    }
+    const lifeRatio = effect.age / DAMAGE_NUMBER_MAX_AGE;
+    const alpha = Math.max(0, 1 - lifeRatio ** 1.4);
+    const fontSize = Math.round(8 + (1 - lifeRatio) * 5);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `bold ${fontSize}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.fillStyle = effect.targetSide === 'left' ? '#ff4444' : '#ff9944';
+    ctx.strokeText(`-${effect.value}`, effect.x, effect.y);
+    ctx.fillText(`-${effect.value}`, effect.x, effect.y);
+    ctx.restore();
+  }
+}
+
 /**
  * Draw debug text overlay.
  */
@@ -1362,7 +1920,7 @@ function drawDebugText() {
   ctx.fillText(`Right Base: ${rightBaseHp} | Tower: ${state.rightTower.isDestroyed() ? 'X' : state.rightTower.health}`, 8, 48);
   ctx.fillText(`Peons L/R: ${leftPeons}/${rightPeons} (Total: ${state.peons.length})`, 8, 64);
   ctx.fillText(`Gold L/R: ${state.leftGold}/${state.rightGold} | Shrine: ${state.shrineControl}`, 8, 80);
-  ctx.fillText(`Vision: ${debugFlags.showVisionRanges ? 'ON' : 'OFF'} (press V)`, 8, 96);
+  ctx.fillText(`Vision: ${debugFlags.showVisionRanges ? 'ON' : 'OFF'} (V)  DMG#: ${debugFlags.showDamageNumbers ? 'ON' : 'OFF'}`, 8, 96);
 
   // Right-side combat telemetry for balancing/debugging.
   ctx.textAlign = 'right';
@@ -1371,17 +1929,147 @@ function drawDebugText() {
   ctx.textAlign = 'left';
 }
 
+function getCurrentSimOptions() {
+  return {
+    width: BASE_CANVAS_WIDTH,
+    height: BASE_CANVAS_HEIGHT,
+    towerAttackRate: constants.TOWER_ATTACK_RATE,
+    towerDamage: constants.TOWER_DAMAGE,
+    baseAttackRate: constants.BASE_ATTACK_RATE,
+    baseDamage: constants.BASE_DAMAGE,
+    upgradeDamageBaseCost: constants.UPGRADE_DAMAGE_BASE_COST,
+    upgradeHealthBaseCost: constants.UPGRADE_HEALTH_BASE_COST,
+    upgradeSpawnBaseCost: constants.UPGRADE_SPAWN_BASE_COST,
+    upgradeDamageCostGrowth: constants.UPGRADE_DAMAGE_COST_GROWTH,
+    upgradeHealthCostGrowth: constants.UPGRADE_HEALTH_COST_GROWTH,
+    upgradeSpawnCostGrowth: constants.UPGRADE_SPAWN_COST_GROWTH,
+    upgradeDamageCostFormula: constants.UPGRADE_DAMAGE_COST_FORMULA,
+    upgradeHealthCostFormula: constants.UPGRADE_HEALTH_COST_FORMULA,
+    upgradeSpawnCostFormula: constants.UPGRADE_SPAWN_COST_FORMULA,
+    structureDamageGraceSeconds: constants.STRUCTURE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+    baseDamageGraceSeconds: constants.BASE_DAMAGE_GRACE_TICKS / constants.TICK_RATE,
+    towerDamagePerMinute: constants.TOWER_DAMAGE_PER_MINUTE,
+    baseDamagePerMinute: constants.BASE_DAMAGE_PER_MINUTE,
+    spawnIntervalSeconds: constants.SPAWN_INTERVAL_TICKS / constants.TICK_RATE,
+    peonSpeed: constants.PEON_SPEED,
+    peonHp: constants.PEON_HP,
+    peonDamage: constants.PEON_DAMAGE,
+    peonAttackRate: constants.PEON_ATTACK_RATE,
+    spawnCount: constants.SPAWN_COUNT,
+  };
+}
+
+function runBattleTests({ leftStrategy, rightStrategy, matchCount }) {
+  const opts = getCurrentSimOptions();
+  const maxTicksPerMatch = constants.TICK_RATE * 60 * 10;
+  let leftWins = 0;
+  let rightWins = 0;
+  let draws = 0;
+  let timeouts = 0;
+  let totalTicks = 0;
+
+  for (let m = 0; m < matchCount; m++) {
+    const sim = createSimulation(opts);
+    sim.setEconomyValues({
+      killBountyGold: constants.KILL_BOUNTY_GOLD,
+      shrineGoldPerSecond: constants.SHRINE_GOLD_PER_SECOND,
+    });
+    sim.setSpawnLayout({
+      padding: constants.SPAWN_SLOT_PADDING,
+      slotCount: constants.SPAWN_SLOT_COUNT,
+    });
+
+    const { state: s, constants: c, getUpgradeSnapshot, buyUpgrade, tick } = sim;
+    let ended = false;
+
+    for (let t = 1; t <= maxTicksPerMatch; t++) {
+      tick();
+
+      if (t % c.TICK_RATE === 0) {
+        for (const side of ['left', 'right']) {
+          const strategy = side === 'left' ? leftStrategy : rightStrategy;
+          const type = getUpgradeTypeForStrategy(strategy, getUpgradeSnapshot()[side]);
+          if (type) {
+            buyUpgrade(side, type);
+          }
+        }
+      }
+
+      if (s.leftBase.isDestroyed() || s.rightBase.isDestroyed()) {
+        totalTicks += t;
+        if (s.leftBase.isDestroyed() && s.rightBase.isDestroyed()) {
+          draws++;
+        } else if (s.leftBase.isDestroyed()) {
+          rightWins++;
+        } else {
+          leftWins++;
+        }
+        ended = true;
+        break;
+      }
+    }
+
+    if (!ended) {
+      timeouts++;
+      totalTicks += maxTicksPerMatch;
+    }
+  }
+
+  return { leftWins, rightWins, draws, timeouts, matchCount, totalTicks };
+}
+
+function setupBattleTestPanel() {
+  const runBtn = document.getElementById('runBattleTestBtn');
+  const testLeftStrategyEl = document.getElementById('testLeftStrategy');
+  const testRightStrategyEl = document.getElementById('testRightStrategy');
+  const testMatchCountEl = document.getElementById('testMatchCount');
+  const testResultsEl = document.getElementById('battleTestResults');
+
+  if (!runBtn || !testResultsEl) {
+    return;
+  }
+
+  runBtn.addEventListener('click', () => {
+    const leftStrategy = testLeftStrategyEl ? testLeftStrategyEl.value : 'none';
+    const rightStrategy = testRightStrategyEl ? testRightStrategyEl.value : 'none';
+    const matchCount = Math.max(1, Math.min(100, Number(testMatchCountEl?.value ?? 30)));
+
+    runBtn.disabled = true;
+    runBtn.textContent = 'Running…';
+
+    setTimeout(() => {
+      const r = runBattleTests({ leftStrategy, rightStrategy, matchCount });
+      const avgSeconds = (r.totalTicks / r.matchCount / constants.TICK_RATE).toFixed(1);
+      const pct = n => `${((n / r.matchCount) * 100).toFixed(0)}%`;
+      const timeoutNote = r.timeouts > 0 ? ` (${r.timeouts} timeout)` : '';
+
+      testResultsEl.innerHTML = [
+        `<strong>${r.matchCount} matches — ${leftStrategy} vs ${rightStrategy}</strong>`,
+        `Blue wins: ${r.leftWins} (${pct(r.leftWins)})`,
+        `Red  wins: ${r.rightWins} (${pct(r.rightWins)})`,
+        `Draws: ${r.draws} (${pct(r.draws)})${timeoutNote}`,
+        `Avg match: ${avgSeconds}s`,
+      ].join('<br>');
+
+      runBtn.disabled = false;
+      runBtn.textContent = 'Run Tests';
+    }, 10);
+  });
+}
+
 /**
  * Initialize and start the game.
  */
 function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
+  ensureVersionDefaultsSaved();
   simulation.setDecisionLogEnabled(true);
   setupHudCollapseControls();
   setupMatchControls();
   setupUpgradeControls();
   setupDevControls();
+  setupBattleTestPanel();
   fitTableToWindow();
   requestAnimationFrame(gameLoop);
 }
