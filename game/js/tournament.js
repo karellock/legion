@@ -4,12 +4,13 @@ const SETTINGS_DEFAULTS_KEY = `legion-dev-settings-defaults-${GAME_VERSION}`;
 const TOURNAMENT_HISTORY_KEY = 'legion-tournament-history-v1';
 const TOURNAMENT_HISTORY_MANIFEST_URL = '../logs/tournament-history-manifest.json';
 const TOURNAMENT_HISTORY_LIMIT = 300;
+const tournamentCore = typeof window !== 'undefined' ? window.LegionTournamentCore : null;
 
 let tournamentHistory = [];
 let selectedHistoryIds = new Set();
 let latestTournamentRun = null;
 
-const STRATEGIES = [
+const STRATEGIES = tournamentCore?.STRATEGIES || [
   { id: 'damage-only', label: 'Damage Only' },
   { id: 'health-only', label: 'Health Only' },
   { id: 'spawn-only', label: 'Spawn Only' },
@@ -19,7 +20,7 @@ const STRATEGIES = [
   { id: 'health-spawn', label: 'Double Trouble: HP + Spawn' },
 ];
 
-const MAP_PROFILES = {
+const MAP_PROFILES = tournamentCore?.MAP_PROFILES || {
   classic: {
     length: 800,
     laneInset: 100,
@@ -53,6 +54,10 @@ function getSavedSettings() {
 }
 
 function getUpgradeTypeForStrategy(strategy, snapshot) {
+  if (tournamentCore?.getUpgradeTypeForStrategy) {
+    return tournamentCore.getUpgradeTypeForStrategy(strategy, snapshot);
+  }
+
   if (strategy === 'damage-only') return 'damage';
   if (strategy === 'health-only') return 'health';
   if (strategy === 'spawn-only') return 'spawn';
@@ -78,6 +83,10 @@ function getUpgradeTypeForStrategy(strategy, snapshot) {
 }
 
 function clampNumber(value, fallback, min, max) {
+  if (tournamentCore?.clampNumber) {
+    return tournamentCore.clampNumber(value, fallback, min, max);
+  }
+
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, parsed));
@@ -260,6 +269,10 @@ function formatHistoryTimestamp(isoText) {
 }
 
 function computeRunAggregateStats(run) {
+  if (tournamentCore?.computeRunAggregateStats) {
+    return tournamentCore.computeRunAggregateStats(run);
+  }
+
   const pairResults = Array.isArray(run.pairResults) ? run.pairResults : [];
   let draws = 0;
   let timeouts = 0;
@@ -603,6 +616,10 @@ function getSelectedStrategies() {
 }
 
 function buildRoundRobinPairs(strategies) {
+  if (tournamentCore?.buildRoundRobinPairs) {
+    return tournamentCore.buildRoundRobinPairs(strategies);
+  }
+
   const pairs = [];
   for (let i = 0; i < strategies.length; i++) {
     for (let j = i + 1; j < strategies.length; j++) {
@@ -756,6 +773,10 @@ function runPairSeries({ strategyA, strategyB, matchesPerSide, settings, mapConf
 }
 
 function buildLeaderboardRows(summaryByStrategy) {
+  if (tournamentCore?.buildLeaderboardRows) {
+    return tournamentCore.buildLeaderboardRows(summaryByStrategy);
+  }
+
   return [...summaryByStrategy.values()].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     return b.winRate - a.winRate;
