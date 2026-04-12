@@ -129,7 +129,7 @@
       });
     }
 
-  function setupUpgradeControls() {
+    function setupUpgradeControls() {
       const defs = [
         { id: 'leftUpgradeDamageBtn', side: 'left', type: 'damage' },
         { id: 'leftUpgradeHealthBtn', side: 'left', type: 'health' },

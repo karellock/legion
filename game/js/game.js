@@ -421,6 +421,7 @@ function init() {
   console.log(`Legion prototype initialized. Version: ${GAME_VERSION}`);
   console.log(`Game loop: ${constants.TICK_RATE} ticks/sec, ${constants.TICK_DURATION.toFixed(2)}ms per tick`);
   if (settingsManager?.shouldApplySessionSettings()) {
+    settingsManager.applyBaseSettings();
     settingsManager.ensureVersionDefaultsSaved();
     settingsManager.applyBaseSettings(initialSessionPayload.settingsSnapshot);
     console.log(`Loaded session payload: ${activeSessionId}`);

@@ -50,8 +50,13 @@
     }
 
     const sessionId = options.sessionId || createSessionId(options.prefix || 'session');
-    localStorage.setItem(`${SESSION_STORAGE_KEY_PREFIX}${sessionId}`, JSON.stringify(payload));
-    return sessionId;
+    try {
+      localStorage.setItem(`${SESSION_STORAGE_KEY_PREFIX}${sessionId}`, JSON.stringify(payload));
+      return sessionId;
+    } catch (err) {
+      console.error('Failed to save session payload:', err);
+      return null;
+    }
   }
 
   function loadSessionPayload(sessionId) {

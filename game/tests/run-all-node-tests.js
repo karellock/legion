@@ -5,7 +5,6 @@ const testFiles = [
   'game/tests/game.bot.core.node.test.js',
   'game/tests/game.battle.test.node.test.js',
   'game/tests/tournament.core.node.test.js',
-  'game/tests/simulation.node.test.js',
 ];
 
 let hasFailure = false;

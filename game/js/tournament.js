@@ -379,32 +379,72 @@ function renderHistoryTable() {
     return;
   }
 
-  const header = '<tr><th class="historySelectCell">Compare</th><th>Date</th><th>Source</th><th>Strategies</th><th>Matches</th><th>Top</th><th>Map</th><th>Settings</th><th>Open</th></tr>';
-  const body = tournamentHistory.map(run => {
+  const table = document.createElement('table');
+  table.className = 'tournamentTable';
+
+  const thead = table.createTHead();
+  const headerRow = thead.insertRow();
+  for (const text of ['Compare', 'Date', 'Source', 'Strategies', 'Matches', 'Top', 'Map', 'Settings', 'Open']) {
+    const th = document.createElement('th');
+    if (text === 'Compare') {
+      th.className = 'historySelectCell';
+    }
+    th.textContent = text;
+    headerRow.appendChild(th);
+  }
+
+  const tbody = table.createTBody();
+  for (const run of tournamentHistory) {
     const stats = computeRunAggregateStats(run);
-    const checked = selectedHistoryIds.has(run.id) ? 'checked' : '';
     const topText = stats.top
       ? `${stats.top.name} ${(stats.top.winRate * 100).toFixed(1)}%`
       : '-';
     const mapLength = Number(run?.mapConfig?.length) || '-';
     const towers = run?.mapConfig?.enableTowers ? 'on' : 'off';
 
-    return `
-      <tr>
-        <td><input class="historyCompareCheckbox" data-run-id="${run.id}" type="checkbox" ${checked} /></td>
-        <td>${formatHistoryTimestamp(run.timestamp)}</td>
-        <td><span class="historySourceTag">${run.source}</span></td>
-        <td>${run.selectedStrategies.length}</td>
-        <td>${run.totalMatches}</td>
-        <td>${topText}</td>
-        <td>${mapLength}px, towers ${towers}</td>
-        <td><button type="button" class="historyViewSettingsBtn" data-run-id="${run.id}">View Settings</button></td>
-        <td><button type="button" class="historyOpenInGameBtn" data-run-id="${run.id}">Open In Main</button></td>
-      </tr>
-    `;
-  }).join('');
+    const tr = tbody.insertRow();
 
-  wrap.innerHTML = `<table class="tournamentTable">${header}${body}</table>`;
+    const checkboxTd = tr.insertCell();
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'historyCompareCheckbox';
+    checkbox.dataset.runId = run.id;
+    checkbox.checked = selectedHistoryIds.has(run.id);
+    checkboxTd.appendChild(checkbox);
+
+    const dateTd = tr.insertCell();
+    dateTd.textContent = formatHistoryTimestamp(run.timestamp);
+
+    const sourceTd = tr.insertCell();
+    const sourceSpan = document.createElement('span');
+    sourceSpan.className = 'historySourceTag';
+    sourceSpan.textContent = run.source;
+    sourceTd.appendChild(sourceSpan);
+
+    tr.insertCell().textContent = run.selectedStrategies.length;
+    tr.insertCell().textContent = run.totalMatches;
+    tr.insertCell().textContent = topText;
+    tr.insertCell().textContent = `${mapLength}px, towers ${towers}`;
+
+    const viewTd = tr.insertCell();
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'historyViewSettingsBtn';
+    viewBtn.dataset.runId = run.id;
+    viewBtn.textContent = 'View Settings';
+    viewTd.appendChild(viewBtn);
+
+    const openTd = tr.insertCell();
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'historyOpenInGameBtn';
+    openBtn.dataset.runId = run.id;
+    openBtn.textContent = 'Open In Main';
+    openTd.appendChild(openBtn);
+  }
+
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
 
   for (const checkbox of document.querySelectorAll('.historyCompareCheckbox')) {
     checkbox.addEventListener('change', event => {
