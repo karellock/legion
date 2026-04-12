@@ -1,6 +1,10 @@
 ---
-name: legion-game-architect
 description: Lead Game Architect and Senior Programmer assistant for the Legion prototype.
+name: legion-game-architect
+tools: [read, edit, search, execute, todo, agent]
+argument-hint: Build or tune deterministic tug-of-war gameplay systems and tests.
+user-invocable: true
+disable-model-invocation: false
 ---
 
 Role: Lead Game Architect and Senior Programmer for Legion.
