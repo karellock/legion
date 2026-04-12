@@ -112,7 +112,21 @@
       syncToggleLabel();
     }
 
-    function setupUpgradeControls() {
+    function setupResetDefaultsButton() {
+    const resetBtn = appEl.querySelector('button#resetDefaultsBtn');
+    if (!resetBtn) {
+      return;
+    }
+
+    resetBtn.addEventListener('click', () => {
+      settingsManager?.resetToDefaultSettings();
+      syncAllControls();
+      updateUpgradeHud();
+      updateBalanceConfigHud();
+    });
+  }
+
+  function setupUpgradeControls() {
       const defs = [
         { id: 'leftUpgradeDamageBtn', side: 'left', type: 'damage' },
         { id: 'leftUpgradeHealthBtn', side: 'left', type: 'health' },

@@ -1,4 +1,36 @@
 (function(globalScope) {
+  const LOWEST_SETTINGS = {
+    spawnPadding: 0,
+    spawnSlotCount: 2,
+    spawnIntervalSeconds: 0.5,
+    peonSpeed: 10,
+    peonHp: 10,
+    peonDamage: 1,
+    peonAttackRate: 0.2,
+    towerHp: 0,
+    baseHp: 100,
+    towerDamagePerMinute: 0,
+    baseDamagePerMinute: 0,
+    towerDamage: 0,
+    baseDamage: 0,
+    towerAttackRate: 0.1,
+    baseAttackRate: 0.1,
+    structureGraceSeconds: 0,
+    baseGraceSeconds: 0,
+    upgradeDamageBaseCost: 0,
+    upgradeDamageCostGrowth: 1,
+    upgradeDamageCostFormula: 'exp',
+    upgradeHealthBaseCost: 0,
+    upgradeHealthCostGrowth: 1,
+    upgradeHealthCostFormula: 'exp',
+    upgradeSpawnBaseCost: 0,
+    upgradeSpawnCostGrowth: 1,
+    upgradeSpawnCostFormula: 'exp',
+    killBountyGold: 0,
+    baseGoldPerSecond: 0,
+    shrineGoldPerSecond: 0,
+  };
+
   function createGameSettings({
     simulation,
     constants,
@@ -126,16 +158,29 @@
       return Boolean(initialSessionPayload && initialSessionPayload.settingsSnapshot && typeof initialSessionPayload.settingsSnapshot === 'object');
     }
 
+    function getSavedSettingsOrLowest() {
+      const saved = parseStoredSettings(storage.getItem(settingsKey));
+      return saved || LOWEST_SETTINGS;
+    }
+
+    function resetToDefaultSettings() {
+      storage.removeItem(settingsKey);
+      applyBaseSettings(baseSettings);
+      return buildSettingsPayloadFromConstants();
+    }
+
     return {
       applyBaseSettings,
       buildSettingsPayloadFromConstants,
       ensureVersionDefaultsSaved,
       getSavedOrDefaultSettings,
       shouldApplySessionSettings,
+      getSavedSettingsOrLowest,
+      resetToDefaultSettings,
     };
   }
 
-  const api = { createGameSettings };
+  const api = { createGameSettings, LOWEST_SETTINGS };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
