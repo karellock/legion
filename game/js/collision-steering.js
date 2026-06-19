@@ -1,30 +1,17 @@
 (function(globalScope) {
-  /**
-   * CollisionSteering — per-tick collision resolution and steering behaviours.
-   *
-   * COLLISION RESOLUTION — hard push-apart so peons NEVER overlap.
-   *   Separation is always along the lane normal (Y for straight lane),
-   *   never along the lane tangent (X). This prevents rear peons from
-   *   pushing front peons forward through enemies.
-   *   Both same-side and opposite-side pairs are resolved.
-   *
-   * STEERING (SLIDE) — lateral drift when blocked by friendlies.
-   *   slideStrength is tuned so lateral movement is visibly slower than
-   *   forward walk speed (no "slide faster than walk" artefact).
-   *
-   * STRUCTURE AVOIDANCE — keep peons from overlapping own base/tower.
-   * LANE BOUNDARIES    — hard clamp on peon.y to prevent void drift.
-   *
-   * All behaviour is deterministic.
-   */
+  // ── Collision + Steering for Lane-Based RTS ─────────────────
+  //
+  // Exposes:
+  //   createCollisionSteering(grid, options?) → { tick, config }
+  //
+  // Design:
+  //   SEPARATE — per-pair lane-normal repulsion (straight lane = Y axis).
+  //   STEER    — lateral avoidance when blocked by friendly OR structure.
+  //   No separate "structure avoidance" pass — steering handles it.
 
-  // ─── Default tuning constants ──────────────────────────────────────────────
+  // ─── Default tuning constants ──────────────────────────────────
 
   const DEFAULT_COLLISION_RADIUS_SCALE = 1.8;
-  // Slide strength: user wants 25. This is visibly slower than
-  // walk (25/60 ≈ 0.42 px/tick vs 50/60 ≈ 0.83 px/tick).
-  // If slide still looks too fast, the bug may be in how the steering
-  // force accumulates across ticks (it shouldn't — fx,fy reset each tick).
   const DEFAULT_SLIDE_STRENGTH         = 25;
   const DEFAULT_SLIDE_LOOK_AHEAD       = 20;
   const DEFAULT_ITERATIONS             = 3;
@@ -37,7 +24,7 @@
     const laneMinY            = options.laneMinY            ?? 0;
     const laneMaxY            = options.laneMaxY            ?? 600;
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────
 
     function collisionRadius(peon) {
       return peon.size * collisionRadiusScale;
@@ -50,65 +37,22 @@
       }
     }
 
-    /**
-     * Compute the separation normal for a pair of peons.
-     *
-     * For straight lanes (Phase 1): always (0, ±1) — pure Y separation.
-     *   This prevents rear peons from pushing front peons forward along X.
-     *   When dy === 0 (directly overlapping), uses deterministic ID-based
-     *   sign so the pair always separates up/down the same way.
-     *
-     * For curved lanes (Phase 3): uses the lane-path tangent at the midpoint
-     *   to derive the normal (tx, ty) → normal = (-ty, tx).
-     *
-     * @param {object} a         - first peon
-     * @param {object} b         - second peon
-     * @param {number} dx        - a.x - b.x
-     * @param {number} dy        - a.y - b.y
-     * @param {number} dist      - Math.sqrt(dx*dx + dy*dy)
-     * @param {object|null} lanePath - LanePath instance, or null for straight-lane shortcut
-     * @returns {{ nx: number, ny: number }} — unit normal pointing a→b
-     */
-    function separationNormal(a, b, dx, dy, dist, lanePath) {
-      if (lanePath) {
-        // Curved lane: use lane normal at the midpoint.
-        const midX = (a.x + b.x) / 2;
-        const midY = (a.y + b.y) / 2;
-        const proj = lanePath.projectPoint(midX, midY);
-        // Normal = perpendicular to tangent: (-ty, tx)
-        // Ensure it points from b→a (same direction as raw dx,dy)
-        let nx = -proj.ty;
-        let ny =  proj.tx;
-        // Flip if it points opposite to dx,dy
-        const dot = nx * dx + ny * dy;
-        if (dot < 0) { nx = -nx; ny = -ny; }
-        const nMag = Math.sqrt(nx * nx + ny * ny) || 1;
-        return { nx: nx / nMag, ny: ny / nMag };
-      }
+    // ── Separation normal ─────────────────────────────────────────────────────
+    // Returns unit normal pointing from b → a (pushes a away from b).
+    // For straight lanes: normal = ±Y axis.
 
-      // Straight lane: normal is always ±Y axis.
-      // When dy !== 0: normal points in the sign(dy) direction → (0, ±1)
-      // When dy === 0: use deterministic ID-based sign
+    function separationNormal(a, b, dx, dy, dist) {
       if (dist === 0) {
-        // Exactly overlapping — use ID to assign consistent opposite directions
         const sign = (a.id < b.id) ? 1 : -1;
         return { nx: 0, ny: sign };
       }
-      // Normalise to pure Y: keep sign of dy, zero out X
       const signY = dy > 0 ? 1 : (dy < 0 ? -1 : ((a.id < b.id) ? 1 : -1));
       return { nx: 0, ny: signY };
     }
 
-    // ── Collision resolution ─────────────────────────────────────────────────
+    // ── Collision resolution ──────────────────────────────────────────────────
+    // Push overlapping peons apart along Y-axis only.
 
-    /**
-     * Push overlapping peons apart along the lane normal only (Y axis for
-     * straight lane). Runs passes until no overlaps remain or max 10 passes.
-     *
-     * Both same-side and opposite-side pairs are resolved (no visual overlap).
-     * Separation is always along the lane normal so rear peons cannot push
-     * front peons forward through enemies.
-     */
     function resolveCollisions(peons, lanePath) {
       const MAX_PASSES = 10;
       for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -137,91 +81,81 @@
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist >= minDist) continue;
-
-            const { nx, ny } = separationNormal(peon, other, dx, dy, dist, lanePath);
-
-            const overlap = minDist - dist;
-            const pushX = nx * overlap * 0.5;
-            const pushY = ny * overlap * 0.5;
-            peon.x  += pushX;
-            peon.y  += pushY;
-            other.x -= pushX;
-            other.y -= pushY;
             anyPush = true;
+
+            const { nx, ny } = separationNormal(peon, other, dx, dy, dist);
+            const overlap = minDist - dist;
+            peon.x += nx * overlap / 2;
+            peon.y += ny * overlap / 2;
+            other.x -= nx * overlap / 2;
+            other.y -= ny * overlap / 2;
           }
         }
 
-        if (!anyPush) break; // converged — all pairs separated
+        if (!anyPush) break;
         if (pass < MAX_PASSES - 1) rebuildGrid(peons);
       }
     }
 
-    // ── Structure avoidance ──────────────────────────────────────────────────
+    // ── Steering: SLIDE (lateral avoidance) ─────────────────────────
+    // Slide when blocked ahead by friendly peon OR by own structure.
+    // Deterministic direction: peon.id % 2.
 
-    function applyStructureAvoidance(peons, structures) {
-      for (const peon of peons) {
-        if (!peon.isAlive()) continue;
-        for (const struct of structures) {
-          const structR = struct.size || 30;
-          const cr = collisionRadius(peon);
-          const minDist = structR + 2;
-          const dx = peon.x - struct.x;
-          const dy = peon.y - struct.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < minDist) {
-            // Push peon toward enemy (away from own base).
-            // Left side: push RIGHT (increase x). Right side: push LEFT (decrease x).
-            if (peon.side === 'left') {
-              peon.x = Math.max(peon.x, struct.x + minDist);
-            } else {
-              peon.x = Math.min(peon.x, struct.x - minDist);
-            }
-          }
-        }
-      }
-    }
-
-    // ── Steering: SLIDE only ───────────────────────────────────────────────
-
-    function applySteeringForces(peons, lanePath, dt) {
+    function applySteeringForces(peons, lanePath, dt, structuresBySide) {
       for (const peon of peons) {
         if (!peon.isAlive()) continue;
         if (peon.target) continue;
 
-        let fx = 0;
-        let fy = 0;
+        let blockedAhead = false;
 
-        // Only slide if immediately adjacent to a friendly (within collision radius).
-        // This prevents "crab walk" (sliding every tick while moving forward).
-        const cr = collisionRadius(peon);
-        const immediateNeighbors = grid.query(peon.x, peon.y, cr);
-        let immediatelyAdjacent = false;
-        for (const nb of immediateNeighbors) {
-          if (nb.id === peon.id) continue;
-          if (nb.side !== peon.side) continue;
-          if (!nb.isAlive()) continue;
-          immediatelyAdjacent = true;
-          break;
-        }
-
-        if (immediatelyAdjacent && lanePath) {
-          const proj = lanePath.projectPoint(peon.x, peon.y);
-          const perpSign = peon.id % 2 === 0 ? 1 : -1;
-          fx += (-proj.ty) * slideStrength * perpSign;
-          fy += ( proj.tx) * slideStrength * perpSign;
-        }
-
-        if (fx !== 0 || fy !== 0) {
-          const speed = Math.abs(peon.velocityX || 50);
-          const maxForce = speed * 1.5;
-          const fMag = Math.sqrt(fx * fx + fy * fy);
-          if (fMag > maxForce) {
-            fx = (fx / fMag) * maxForce;
-            fy = (fy / fMag) * maxForce;
+        // Check for friendly peon blocking ahead.
+        if (lanePath) {
+          const proj   = lanePath.projectPoint(peon.x, peon.y);
+          const fwd    = peon.side === 'left' ? 1 : -1;
+          const lookX  = peon.x + proj.tx * slideLookAhead * fwd;
+          const lookY  = peon.y + proj.ty * slideLookAhead * fwd;
+          const ahead  = grid.query(lookX, lookY, peon.size * collisionRadiusScale * 1.5);
+          for (const nb of ahead) {
+            if (nb.id === peon.id) continue;
+            if (nb.side !== peon.side) continue;
+            if (!nb.isAlive()) continue;
+            blockedAhead = true;
+            break;
           }
-          peon.x += fx * dt;
-          peon.y += fy * dt;
         }
+
+        // Check for own structure blocking ahead.
+        if (!blockedAhead && structuresBySide) {
+          const ownStructures = structuresBySide[peon.side] || [];
+          for (const st of ownStructures) {
+            const structR = st.size || 30;
+            const dx = peon.x - st.x;
+            const dy = peon.y - st.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < structR + collisionRadius(peon)) {
+              blockedAhead = true;
+              break;
+            }
+          }
+        }
+
+        if (!blockedAhead || !lanePath) continue;
+
+        const proj = lanePath.projectPoint(peon.x, peon.y);
+        const perpSign = peon.id % 2 === 0 ? 1 : -1;
+        let fx = (-proj.ty) * slideStrength * perpSign;
+        let fy = ( proj.tx) * slideStrength * perpSign;
+
+        // Clamp slide force to max 1.5× forward speed.
+        const speed = Math.abs(peon.velocityX || 50);
+        const maxForce = speed * 1.5;
+        const fMag = Math.sqrt(fx * fx + fy * fy);
+        if (fMag > maxForce) {
+          fx = (fx / fMag) * maxForce;
+          fy = (fy / fMag) * maxForce;
+        }
+        peon.x += fx * dt;
+        peon.y += fy * dt;
       }
     }
 
@@ -241,27 +175,16 @@
       const living = peons.filter(p => p.isAlive());
       rebuildGrid(living);
       resolveCollisions(living, lanePath);
-
-      if (structuresBySide) {
-        for (const peon of living) {
-          const own = structuresBySide[peon.side] || [];
-          if (own.length > 0) {
-            applyStructureAvoidance([peon], own);
-          }
-        }
-      }
-
-      rebuildGrid(living);
-      applySteeringForces(living, lanePath, dt);
-
+      applySteeringForces(living, lanePath, dt, structuresBySide);
       clampToLaneBounds(living);
     }
+
+    // ── Public API ─────────────────────────────────────────────────
 
     return {
       tick,
       rebuildGrid,
       resolveCollisions,
-      applyStructureAvoidance,
       applySteeringForces,
       clampToLaneBounds,
       config: {
