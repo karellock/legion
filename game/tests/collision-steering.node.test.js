@@ -172,7 +172,8 @@ runTest('peon overlapping own base is pushed away', () => {
   const dx = peon.x - base.x;
   const dy = peon.y - base.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const minDist = base.size + peon.size * cs.config.collisionRadiusScale;
+  // After fix: minDist = structR + 2 (allow peons within attack range).
+  const minDist = base.size + 2;
   assert(dist >= minDist * 0.99, `peon should be outside base`);
 });
 

@@ -164,7 +164,9 @@
         for (const struct of structures) {
           const structR = struct.size || 30;
           const cr = collisionRadius(peon);
-          const minDist = structR + cr;
+          // Push peons to just outside the structure's radius (allow them to be
+          // within attack range to benefit from tower coverage).
+          const minDist = structR + 2;
           const dx = peon.x - struct.x;
           const dy = peon.y - struct.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
