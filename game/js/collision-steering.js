@@ -195,27 +195,24 @@
         let fx = 0;
         let fy = 0;
 
-        if (lanePath) {
+        // Only slide if immediately adjacent to a friendly (within collision radius).
+        // This prevents "crab walk" (sliding every tick while moving forward).
+        const cr = collisionRadius(peon);
+        const immediateNeighbors = grid.query(peon.x, peon.y, cr);
+        let immediatelyAdjacent = false;
+        for (const nb of immediateNeighbors) {
+          if (nb.id === peon.id) continue;
+          if (nb.side !== peon.side) continue;
+          if (!nb.isAlive()) continue;
+          immediatelyAdjacent = true;
+          break;
+        }
+
+        if (immediatelyAdjacent && lanePath) {
           const proj = lanePath.projectPoint(peon.x, peon.y);
-          const forwardDir = peon.side === 'left' ? 1 : -1;
-          const lookX = peon.x + proj.tx * slideLookAhead * forwardDir;
-          const lookY = peon.y + proj.ty * slideLookAhead * forwardDir;
-
-          const ahead = grid.query(lookX, lookY, peon.size * collisionRadiusScale * 1.5);
-          let friendlyBlocking = false;
-          for (const nb of ahead) {
-            if (nb.id === peon.id) continue;
-            if (nb.side !== peon.side) continue;
-            if (!nb.isAlive()) continue;
-            friendlyBlocking = true;
-            break;
-          }
-
-          if (friendlyBlocking) {
-            const perpSign = peon.id % 2 === 0 ? 1 : -1;
-            fx += (-proj.ty) * slideStrength * perpSign;
-            fy +=  (proj.tx) * slideStrength * perpSign;
-          }
+          const perpSign = peon.id % 2 === 0 ? 1 : -1;
+          fx += (-proj.ty) * slideStrength * perpSign;
+          fy += ( proj.tx) * slideStrength * perpSign;
         }
 
         if (fx !== 0 || fy !== 0) {
