@@ -164,18 +164,22 @@
         for (const struct of structures) {
           const structR = struct.size || 30;
           const cr = collisionRadius(peon);
+          // Push peons to just outside the structure's radius (allow them to be
+          // within attack range to benefit from tower coverage).
           const minDist = structR + 2;
           const dx = peon.x - struct.x;
           const dy = peon.y - struct.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < minDist) {
-            // Push peon AWAY from the structure (toward enemy).
-            const pushDir = peon.side === 'left' ? 1 : -1;  // +1 for left (move right), -1 for right (move left)
-            if (peon.side === 'left') {
-              peon.x = Math.max(peon.x, struct.x + minDist);
+            let nx, ny;
+            if (dist === 0) {
+              nx = 1; ny = 0;
             } else {
-              peon.x = Math.min(peon.x, struct.x - minDist);
+              nx = dx / dist;
+              ny = dy / dist;
             }
+            peon.x = struct.x + nx * minDist;
+            peon.y = struct.y + ny * minDist;
           }
         }
       }
