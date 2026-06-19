@@ -1131,8 +1131,11 @@ function createSimulation(options = {}) {
     const targetDistance = peon.distanceTo(currentTarget);
 
     if (isPeonEntity(currentTarget)) {
+      // Keep target if within attack range OR within vision range.
+      // isEnemyAheadOrNearby check removed — peons should keep targeting
+      // enemies that are slightly behind them (e.g. after collision separation).
       return targetDistance <= peon.attackRange
-        || (targetDistance <= peon.visionRange && isEnemyAheadOrNearby(peon, currentTarget));
+        || targetDistance <= peon.visionRange;
     }
 
     // Structures are only kept while no enemy peon is visible.
