@@ -69,8 +69,11 @@
      * Push overlapping peons apart.
      * Runs `iterations` passes so deeply overlapping clusters separate cleanly.
      *
-     * IMPORTANT: pairs where one peon is attacking the other are SKIPPED.
-     * This keeps attackers in attack range so they actually deal damage.
+     * Only same-side peons collide with each other. Opposite-side peons
+     * in combat are allowed to overlap — they stop to attack instead of
+     * bouncing off each other. This also fixes the "rear peon pushes
+     * front peon through enemies" bug, because friendly peons collide
+     * (forming a frontline) but enemies never push each other.
      */
     function resolveCollisions(peons) {
       for (let pass = 0; pass < iterations; pass++) {
@@ -85,10 +88,8 @@
             if (other.id === peon.id) continue;
             if (!other.isAlive()) continue;
 
-            // Skip attacker-target pairs — they must stay in range to deal damage.
-            if (isAttacking(peon, other) || isAttacking(other, peon)) {
-              continue;
-            }
+            // Only collide same-side peons.
+            if (peon.side !== other.side) continue;
 
             const pairKey = peon.id < other.id
               ? `${peon.id}:${other.id}`

@@ -44,27 +44,39 @@ function makeSteering(grid, opts = {}) {
   return createCollisionSteering(grid, opts);
 }
 
-// ─── resolveCollisions: basic separation ─────────────────────────────────────
+// ─── resolveCollisions: same-side only ─────────────────────────────────────
 
-runTest('two overlapping peons are pushed apart', () => {
+runTest('same-side peons are pushed apart', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid, { iterations: 3 });
-  const a = makePeon('left',  200, 200);
-  const b = makePeon('right', 200, 200);
+  const a = makePeon('left', 200, 200);
+  const b = makePeon('left', 200, 200);
   cs.rebuildGrid([a, b]);
   cs.resolveCollisions([a, b]);
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   const minDist = a.size * cs.config.collisionRadiusScale * 2;
-  assert(dist >= minDist * 0.98, `dist ${dist.toFixed(2)} should be >= minDist ${minDist.toFixed(2)}`);
+  assert(dist >= minDist * 0.98, `same-side dist ${dist.toFixed(2)} should be >= ${minDist.toFixed(2)}`);
+});
+
+runTest('opposite-side peons are NOT pushed apart', () => {
+  const grid = makeGrid();
+  const cs   = makeSteering(grid, { iterations: 3 });
+  const a = makePeon('left',  200, 200);
+  const b = makePeon('right', 200, 200);
+  const distBefore = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+  cs.rebuildGrid([a, b]);
+  cs.resolveCollisions([a, b]);
+  const distAfter = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+  assertClose(distAfter, distBefore, 'opposite-side peons should not be pushed apart', 0.01);
 });
 
 runTest('peons that are already far apart are not moved', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid);
-  const a = makePeon('left',  100, 200);
-  const b = makePeon('left',  400, 200);
+  const a = makePeon('left', 100, 200);
+  const b = makePeon('left', 400, 200);
   const ax0 = a.x, bx0 = b.x;
   cs.rebuildGrid([a, b]);
   cs.resolveCollisions([a, b]);
@@ -72,13 +84,13 @@ runTest('peons that are already far apart are not moved', () => {
   assertClose(b.x, bx0, 'peon b should not move', 0.001);
 });
 
-runTest('three peons in a pile all separate', () => {
+runTest('three same-side peons in a pile all separate', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid, { iterations: 5 });
   const peons = [
-    makePeon('left',  200, 200),
-    makePeon('right', 200, 200),
-    makePeon('left',  200, 200),
+    makePeon('left', 200, 200),
+    makePeon('left', 200, 200),
+    makePeon('left', 200, 200),
   ];
   cs.rebuildGrid(peons);
   cs.resolveCollisions(peons);
@@ -106,53 +118,16 @@ runTest('dead peons are not pushed', () => {
   assertClose(dead.y, dy0, 'dead peon y should not change', 0.001);
 });
 
-// ─── Attacker-target pair skipping ───────────────────────────────────────────
-
-runTest('attacker-target pair is NOT pushed apart by collision', () => {
-  // peon a is attacking peon b. They should stay in range.
-  const grid = makeGrid();
-  const cs   = makeSteering(grid, { iterations: 3 });
-  const a = makePeon('left',  200, 200);
-  const b = makePeon('right', 210, 200); // within attack range (~22px)
-  a.target = b; // a is attacking b
-  const aDistBefore = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-  cs.rebuildGrid([a, b]);
-  cs.resolveCollisions([a, b]);
-  const aDistAfter = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-  // They should NOT have been pushed apart (distance should be the same or smaller).
-  assert(
-    Math.abs(aDistAfter - aDistBefore) < 0.01,
-    `attacker-target pair should not be pushed: dist before=${aDistBefore.toFixed(2)} after=${aDistAfter.toFixed(2)}`
-  );
-});
-
-runTest('non-attacking pair is still pushed apart', () => {
-  // a and b are NOT attacking each other — normal collision applies.
-  const grid = makeGrid();
-  const cs   = makeSteering(grid, { iterations: 3 });
-  const a = makePeon('left',  200, 200);
-  const b = makePeon('right', 200, 200);
-  // neither has target set
-  cs.rebuildGrid([a, b]);
-  cs.resolveCollisions([a, b]);
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const minDist = a.size * cs.config.collisionRadiusScale * 2;
-  assert(dist >= minDist * 0.98, 'non-attacking pair should be pushed apart');
-});
-
-// ─── Determinism ─────────────────────────────────────────────────────────────
-
 runTest('collision resolution is deterministic across two runs', () => {
   function runOnce(startId) {
     nextId = startId;
     const grid = makeGrid();
     const cs = makeSteering(grid, { iterations: 3 });
+    // Use same-side peons so collision actually resolves deterministically.
     const peons = [
-      makePeon('left',  200, 200),
-      makePeon('right', 201, 200),
-      makePeon('left',  199, 201),
+      makePeon('left', 200, 200),
+      makePeon('left', 201, 200),
+      makePeon('left', 199, 201),
     ];
     cs.rebuildGrid(peons);
     cs.resolveCollisions(peons);
@@ -224,7 +199,7 @@ runTest('peons with a target set are not moved by steering', () => {
 runTest('clampToLaneBounds clamps peon above lane top', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid, { laneMinY: 50, laneMaxY: 550 });
-  const peon = makePeon('left', 200, 10); // above lane top
+  const peon = makePeon('left', 200, 10);
   cs.clampToLaneBounds([peon]);
   assertClose(peon.y, 50, 'peon.y should be clamped to laneMinY=50');
 });
@@ -232,7 +207,7 @@ runTest('clampToLaneBounds clamps peon above lane top', () => {
 runTest('clampToLaneBounds clamps peon below lane bottom', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid, { laneMinY: 50, laneMaxY: 550 });
-  const peon = makePeon('left', 200, 600); // below lane bottom
+  const peon = makePeon('left', 200, 600);
   cs.clampToLaneBounds([peon]);
   assertClose(peon.y, 550, 'peon.y should be clamped to laneMaxY=550');
 });
@@ -250,7 +225,6 @@ runTest('full tick clamps peons to lane boundaries', () => {
   const grid = makeGrid();
   const cs   = makeSteering(grid, { laneMinY: 50, laneMaxY: 550 });
   const path = createStraightLanePath(100, 700, 300);
-  // Peon starts above lane — should be clamped after tick.
   const peon = makePeon('left', 200, 10);
   cs.tick([peon], path, 1 / 60, null);
   assert(peon.y >= 50, `peon.y=${peon.y} should be >= laneMinY=50`);
@@ -264,9 +238,9 @@ runTest('full tick does not throw and leaves peons alive', () => {
   const cs   = makeSteering(grid);
   const path = createStraightLanePath(100, 700, 300);
   const peons = [
-    makePeon('left',  200, 300),
+    makePeon('left', 200, 300),
     makePeon('right', 500, 300),
-    makePeon('left',  200, 305),
+    makePeon('left', 200, 305),
   ];
   cs.tick(peons, path, 1 / 60, null);
   for (const p of peons) {
@@ -282,9 +256,9 @@ runTest('full tick is deterministic', () => {
     const cs   = makeSteering(grid);
     const path = createStraightLanePath(100, 700, 300);
     const peons = [
-      makePeon('left',  200, 300),
+      makePeon('left', 200, 300),
       makePeon('right', 210, 300),
-      makePeon('left',  205, 305),
+      makePeon('left', 205, 305),
     ];
     cs.tick(peons, path, 1 / 60, null);
     return peons.map(p => `${p.x.toFixed(5)},${p.y.toFixed(5)}`).join('|');
