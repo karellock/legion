@@ -92,7 +92,11 @@
       const range = Number.isFinite(entity.attackRange) ? entity.attackRange : '-';
       const side = entity.side ?? '-';
       const id = Number.isFinite(entity.id) ? entity.id : '-';
-      selectionInfoEl.textContent = `${type.toUpperCase()} #${id} | side ${side} | HP ${hp} | DMG ${dmg} | RNG ${range}`;
+      const targetId = (entity.target && Number.isFinite(entity.target.id)) ? entity.target.id : '-';
+      const velX = Number.isFinite(entity.velocityX) ? entity.velocityX : '-';
+      const posX = Number.isFinite(entity.x) ? Math.round(entity.x) : '-';
+      const posY = Number.isFinite(entity.y) ? Math.round(entity.y) : '-';
+      selectionInfoEl.textContent = `${type.toUpperCase()} #${id} | side ${side} | HP ${hp} | DMG ${dmg} | RNG ${range} | TGT ${targetId} | vX ${velX} | (${posX},${posY})`;
     }
 
     function handleCanvasClick(event) {
