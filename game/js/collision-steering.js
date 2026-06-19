@@ -2,40 +2,31 @@
   /**
    * CollisionSteering — per-tick collision resolution and steering behaviours.
    *
-   * Designed to be called once per tick from simulation.js after movement
-   * positions are updated, before the tick summary is logged.
+   * COLLISION RESOLUTION — hard push-apart so peons NEVER overlap.
+   *   Separation is always along the lane normal (Y for straight lane),
+   *   never along the lane tangent (X). This prevents rear peons from
+   *   pushing front peons forward through enemies.
+   *   Both same-side and opposite-side pairs are resolved.
    *
-   * Two behaviours compose to form the final movement for each peon:
+   * STEERING (SLIDE) — lateral drift when blocked by friendlies.
+   *   slideStrength is tuned so lateral movement is visibly slower than
+   *   forward walk speed (no "slide faster than walk" artefact).
    *
-   *  COLLISION RESOLUTION — hard push-apart so peons cannot overlap.
-   *             Pairs where one peon is actively attacking the other are
-   *             SKIPPED so attackers stay in range and deal damage.
+   * STRUCTURE AVOIDANCE — keep peons from overlapping own base/tower.
+   * LANE BOUNDARIES    — hard clamp on peon.y to prevent void drift.
    *
-   *  SLIDE    — when blocked by friendly units ahead, drift laterally
-   *             (perpendicular to path tangent) to find an open lane.
-   *
-   * STRUCTURE AVOIDANCE — keep peons from overlapping their own base/tower.
-   *
-   * LANE BOUNDARIES — hard clamp on peon.y to prevent drifting into the void.
-   *
-   * All weights are configurable. The system is deterministic.
+   * All behaviour is deterministic.
    */
 
   // ─── Default tuning constants ──────────────────────────────────────────────
 
   const DEFAULT_COLLISION_RADIUS_SCALE = 1.8;
-  const DEFAULT_SLIDE_STRENGTH         = 80;
+  // Slide strength: visibly slower than forward speed (25/60 ≈ 0.42 px/tick
+  // vs forward 50/60 ≈ 0.83 px/tick). Was 80, which looked like sliding.
+  const DEFAULT_SLIDE_STRENGTH         = 25;
   const DEFAULT_SLIDE_LOOK_AHEAD       = 20;
   const DEFAULT_ITERATIONS             = 3;
 
-  /**
-   * Create a collision/steering controller bound to a spatial hash grid.
-   *
-   * @param {object} grid           - LegionSpatialGrid instance
-   * @param {object} [options]      - tuning overrides
-   * @param {number} [options.laneMinY]
-   * @param {number} [options.laneMaxY]  - hard y-boundary clamp
-   */
   function createCollisionSteering(grid, options = {}) {
     const collisionRadiusScale = options.collisionRadiusScale ?? DEFAULT_COLLISION_RADIUS_SCALE;
     const slideStrength        = options.slideStrength        ?? DEFAULT_SLIDE_STRENGTH;
@@ -50,12 +41,6 @@
       return peon.size * collisionRadiusScale;
     }
 
-    function isAttacking(a, b) {
-      // Returns true if peon a is currently attacking peon b.
-      // a.target is set to the entity a is trying to attack.
-      return a.target === b;
-    }
-
     function rebuildGrid(peons) {
       grid.clear();
       for (const peon of peons) {
@@ -63,20 +48,69 @@
       }
     }
 
+    /**
+     * Compute the separation normal for a pair of peons.
+     *
+     * For straight lanes (Phase 1): always (0, ±1) — pure Y separation.
+     *   This prevents rear peons from pushing front peons forward along X.
+     *   When dy === 0 (directly overlapping), uses deterministic ID-based
+     *   sign so the pair always separates up/down the same way.
+     *
+     * For curved lanes (Phase 3): uses the lane-path tangent at the midpoint
+     *   to derive the normal (tx, ty) → normal = (-ty, tx).
+     *
+     * @param {object} a         - first peon
+     * @param {object} b         - second peon
+     * @param {number} dx        - a.x - b.x
+     * @param {number} dy        - a.y - b.y
+     * @param {number} dist      - Math.sqrt(dx*dx + dy*dy)
+     * @param {object|null} lanePath - LanePath instance, or null for straight-lane shortcut
+     * @returns {{ nx: number, ny: number }} — unit normal pointing a→b
+     */
+    function separationNormal(a, b, dx, dy, dist, lanePath) {
+      if (lanePath) {
+        // Curved lane: use lane normal at the midpoint.
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+        const proj = lanePath.projectPoint(midX, midY);
+        // Normal = perpendicular to tangent: (-ty, tx)
+        // Ensure it points from b→a (same direction as raw dx,dy)
+        let nx = -proj.ty;
+        let ny =  proj.tx;
+        // Flip if it points opposite to dx,dy
+        const dot = nx * dx + ny * dy;
+        if (dot < 0) { nx = -nx; ny = -ny; }
+        const nMag = Math.sqrt(nx * nx + ny * ny) || 1;
+        return { nx: nx / nMag, ny: ny / nMag };
+      }
+
+      // Straight lane: normal is always ±Y axis.
+      // When dy !== 0: normal points in the sign(dy) direction → (0, ±1)
+      // When dy === 0: use deterministic ID-based sign
+      if (dist === 0) {
+        // Exactly overlapping — use ID to assign consistent opposite directions
+        const sign = (a.id < b.id) ? 1 : -1;
+        return { nx: 0, ny: sign };
+      }
+      // Normalise to pure Y: keep sign of dy, zero out X
+      const signY = dy > 0 ? 1 : (dy < 0 ? -1 : ((a.id < b.id) ? 1 : -1));
+      return { nx: 0, ny: signY };
+    }
+
     // ── Collision resolution ─────────────────────────────────────────────────
 
     /**
-     * Push overlapping peons apart.
-     * Runs `iterations` passes so deeply overlapping clusters separate cleanly.
+     * Push overlapping peons apart along the lane normal only (Y axis for
+     * straight lane). Runs passes until no overlaps remain or max 10 passes.
      *
-     * Only same-side peons collide with each other. Opposite-side peons
-     * in combat are allowed to overlap — they stop to attack instead of
-     * bouncing off each other. This also fixes the "rear peon pushes
-     * front peon through enemies" bug, because friendly peons collide
-     * (forming a frontline) but enemies never push each other.
+     * Both same-side and opposite-side pairs are resolved (no visual overlap).
+     * Separation is always along the lane normal so rear peons cannot push
+     * front peons forward through enemies.
      */
-    function resolveCollisions(peons) {
-      for (let pass = 0; pass < iterations; pass++) {
+    function resolveCollisions(peons, lanePath) {
+      const MAX_PASSES = 10;
+      for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let anyPush = false;
         const processed = new Set();
 
         for (const peon of peons) {
@@ -87,9 +121,6 @@
           for (const other of candidates) {
             if (other.id === peon.id) continue;
             if (!other.isAlive()) continue;
-
-            // Only collide same-side peons.
-            if (peon.side !== other.side) continue;
 
             const pairKey = peon.id < other.id
               ? `${peon.id}:${other.id}`
@@ -105,25 +136,21 @@
 
             if (dist >= minDist) continue;
 
-            let nx, ny;
-            if (dist === 0) {
-              nx = peon.id < other.id ? 1 : -1;
-              ny = 0;
-            } else {
-              nx = dx / dist;
-              ny = dy / dist;
-            }
+            const { nx, ny } = separationNormal(peon, other, dx, dy, dist, lanePath);
 
             const overlap = minDist - dist;
-            const push = overlap * 0.5;
-            peon.x  += nx * push;
-            peon.y  += ny * push;
-            other.x -= nx * push;
-            other.y -= ny * push;
+            const pushX = nx * overlap * 0.5;
+            const pushY = ny * overlap * 0.5;
+            peon.x  += pushX;
+            peon.y  += pushY;
+            other.x -= pushX;
+            other.y -= pushY;
+            anyPush = true;
           }
         }
 
-        if (pass < iterations - 1) rebuildGrid(peons);
+        if (!anyPush) break; // converged — all pairs separated
+        if (pass < MAX_PASSES - 1) rebuildGrid(peons);
       }
     }
 
@@ -156,21 +183,14 @@
 
     // ── Steering: SLIDE only ───────────────────────────────────────────────
 
-    /**
-     * Apply lateral slide steering for peons not currently in combat.
-     * When blocked directly ahead by a friendly unit, drift perpendicular
-     * to the lane path so the peon finds an open lane.
-     */
     function applySteeringForces(peons, lanePath, dt) {
       for (const peon of peons) {
         if (!peon.isAlive()) continue;
-        // Peons with an active target are in combat — targeting/movement owns them.
         if (peon.target) continue;
 
         let fx = 0;
         let fy = 0;
 
-        // ── SLIDE ───────────────────────────────────────────────────────────
         if (lanePath) {
           const proj = lanePath.projectPoint(peon.x, peon.y);
           const forwardDir = peon.side === 'left' ? 1 : -1;
@@ -223,7 +243,7 @@
     function tick(peons, lanePath, dt, structuresBySide) {
       const living = peons.filter(p => p.isAlive());
       rebuildGrid(living);
-      resolveCollisions(living);
+      resolveCollisions(living, lanePath);
 
       if (structuresBySide) {
         for (const peon of living) {
@@ -237,7 +257,6 @@
       rebuildGrid(living);
       applySteeringForces(living, lanePath, dt);
 
-      // Hard lane boundary clamp — must run after all movement/steering.
       clampToLaneBounds(living);
     }
 
