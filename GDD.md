@@ -104,7 +104,7 @@ The intended player experience:
 ## 5. Entities & Stats
 
 ### Peon (Basic Unit)
-- 100 HP, 9 Damage, 1 attack/second, speed 25 px/s
+- 100 HP, 9 Damage, 1 attack/second, speed 50 px/s, attack range 25px
 - Spawned in waves (configurable interval + batch size)
 - Collision radius: `size * 1.8` = 10.8 px
 
