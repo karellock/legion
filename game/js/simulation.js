@@ -411,12 +411,15 @@ function createSimulation(options = {}) {
   const spawnSlots = [];
 
   // ── Collision / steering singletons ──────────────────────────────────────
-  // Created once per simulation instance. The lane path is a straight line
-  // for Phase 1; swap waypoints here when S-curve maps arrive.
+  const _laneTop    = constants.LANE_TOP    ?? 50;
+  const _laneBottom = constants.LANE_BOTTOM ?? 550;
   const _collisionGrid = _SpatialGrid ? _SpatialGrid.createSpatialHashGrid({ cellSize: 32 }) : null;
-  let   _lanePath      = null; // built in initEntities once we know base positions
+  let   _lanePath      = null;
   const _collisionSteering = (_CollisionSteering && _collisionGrid)
-    ? _CollisionSteering.createCollisionSteering(_collisionGrid)
+    ? _CollisionSteering.createCollisionSteering(_collisionGrid, {
+        laneMinY: _laneTop,
+        laneMaxY: _laneBottom,
+      })
     : null;
 
   function rebuildSpawnSlots() {
