@@ -21,10 +21,11 @@
   // ─── Default tuning constants ──────────────────────────────────────────────
 
   const DEFAULT_COLLISION_RADIUS_SCALE = 1.8;
-  // Slide strength: tuned to be visibly slower than forward walk (50/60 ≈ 0.83 px/tick).
-  // Was 80 (far too fast), then 25 (still noticeable). Now 5 so lateral
-  // drift is subtle — peons mostly walk forward, slide only when truly blocked.
-  const DEFAULT_SLIDE_STRENGTH         = 5;
+  // Slide strength: user wants 25. This is visibly slower than
+  // walk (25/60 ≈ 0.42 px/tick vs 50/60 ≈ 0.83 px/tick).
+  // If slide still looks too fast, the bug may be in how the steering
+  // force accumulates across ticks (it shouldn't — fx,fy reset each tick).
+  const DEFAULT_SLIDE_STRENGTH         = 25;
   const DEFAULT_SLIDE_LOOK_AHEAD       = 20;
   const DEFAULT_ITERATIONS             = 3;
 

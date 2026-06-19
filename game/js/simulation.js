@@ -1111,7 +1111,10 @@ function createSimulation(options = {}) {
   }
 
   function isEnemyAheadOrNearby(peon, enemyPeon) {
-    const backwardTolerance = peon.attackRange + 8;
+    // Use vision range as backward tolerance so peons can still
+    // target enemies that are slightly behind them (e.g. after
+    // being pushed by collision separation).
+    const backwardTolerance = peon.visionRange || 90;
 
     if (peon.side === 'left') {
       return enemyPeon.x >= peon.x - backwardTolerance;
