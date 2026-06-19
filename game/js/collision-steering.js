@@ -21,9 +21,10 @@
   // ─── Default tuning constants ──────────────────────────────────────────────
 
   const DEFAULT_COLLISION_RADIUS_SCALE = 1.8;
-  // Slide strength: visibly slower than forward speed (25/60 ≈ 0.42 px/tick
-  // vs forward 50/60 ≈ 0.83 px/tick). Was 80, which looked like sliding.
-  const DEFAULT_SLIDE_STRENGTH         = 25;
+  // Slide strength: tuned to be visibly slower than forward walk (50/60 ≈ 0.83 px/tick).
+  // Was 80 (far too fast), then 25 (still noticeable). Now 5 so lateral
+  // drift is subtle — peons mostly walk forward, slide only when truly blocked.
+  const DEFAULT_SLIDE_STRENGTH         = 5;
   const DEFAULT_SLIDE_LOOK_AHEAD       = 20;
   const DEFAULT_ITERATIONS             = 3;
 

@@ -43,7 +43,7 @@ function createSimulation(options = {}) {
     PEON_HP: 100,
     PEON_DAMAGE: 9,
     PEON_ATTACK_RATE: 1,
-    PEON_ATTACK_RANGE: 16,
+    PEON_ATTACK_RANGE: 25,
     PEON_VISION_RANGE: 90,
     TOWER_ATTACK_RANGE: 120,
     TOWER_ATTACK_RATE: Math.max(0.05, Number(options.towerAttackRate ?? 0.5)),
