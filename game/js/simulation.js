@@ -1192,8 +1192,8 @@ function createSimulation(options = {}) {
 
   function findDesiredTargetForPeon(peon, enemyPeons) {
     const crossedMidline = hasCrossedMidline(peon);
-    const forwardEnemyPeons = enemyPeons.filter(enemyPeon => isEnemyAheadOrNearby(peon, enemyPeon));
-    const visibleEnemyTarget = findNearestEnemyPeon(peon, forwardEnemyPeons);
+    // Don't filter by isEnemyAheadOrNearby() — peons should see ALL enemies in vision range.
+    const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
     const structureTarget = findStructureTargetForPeon(peon, crossedMidline);
 
     return {
