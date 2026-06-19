@@ -30,7 +30,7 @@ const BASE_SETTINGS = {
   spawnPadding: 15,
   spawnSlotCount: 7,
   spawnIntervalSeconds: 6,
-  peonSpeed: 25,
+  peonSpeed: 50,
   peonHp: 100,
   peonDamage: 9,
   peonAttackRate: 1,

@@ -1,3 +1,15 @@
+// Collision/steering and lane-path are optional deps loaded when available
+// (browser via script tag, Node.js via require in tests).
+const _LanePath = (typeof LegionLanePath !== 'undefined')
+  ? LegionLanePath
+  : (() => { try { return require('./lane-path.js'); } catch { return null; } })();
+const _SpatialGrid = (typeof LegionSpatialGrid !== 'undefined')
+  ? LegionSpatialGrid
+  : (() => { try { return require('./spatial-hash-grid.js'); } catch { return null; } })();
+const _CollisionSteering = (typeof LegionCollisionSteering !== 'undefined')
+  ? LegionCollisionSteering
+  : (() => { try { return require('./collision-steering.js'); } catch { return null; } })();
+
 function createSimulation(options = {}) {
   const width = options.width ?? 800;
   const height = options.height ?? 600;
@@ -31,7 +43,7 @@ function createSimulation(options = {}) {
     PEON_HP: 100,
     PEON_DAMAGE: 9,
     PEON_ATTACK_RATE: 1,
-    PEON_ATTACK_RANGE: 16,
+    PEON_ATTACK_RANGE: 25,
     PEON_VISION_RANGE: 90,
     TOWER_ATTACK_RANGE: 120,
     TOWER_ATTACK_RATE: Math.max(0.05, Number(options.towerAttackRate ?? 0.5)),
@@ -397,6 +409,18 @@ function createSimulation(options = {}) {
   }
 
   const spawnSlots = [];
+
+  // ── Collision / steering singletons ──────────────────────────────────────
+  const _laneTop    = constants.LANE_TOP    ?? 50;
+  const _laneBottom = constants.LANE_BOTTOM ?? 550;
+  const _collisionGrid = _SpatialGrid ? _SpatialGrid.createSpatialHashGrid({ cellSize: 32 }) : null;
+  let   _lanePath      = null;
+  const _collisionSteering = (_CollisionSteering && _collisionGrid)
+    ? _CollisionSteering.createCollisionSteering(_collisionGrid, {
+        laneMinY: _laneTop,
+        laneMaxY: _laneBottom,
+      })
+    : null;
 
   function rebuildSpawnSlots() {
     const nextSlots = createSpawnSlots();
@@ -769,6 +793,15 @@ function createSimulation(options = {}) {
     state.decisionLog = [];
     rebuildSpawnSlots();
     updateStructureDamageByTime();
+
+    // Build lane path once entity positions are known.
+    if (_LanePath) {
+      _lanePath = _LanePath.createStraightLanePath(
+        constants.LANE_LEFT,
+        constants.LANE_RIGHT,
+        height / 2
+      );
+    }
   }
 
   function getUpgradesForSide(side) {
@@ -1078,7 +1111,10 @@ function createSimulation(options = {}) {
   }
 
   function isEnemyAheadOrNearby(peon, enemyPeon) {
-    const backwardTolerance = peon.attackRange + 8;
+    // Use vision range as backward tolerance so peons can still
+    // target enemies that are slightly behind them (e.g. after
+    // being pushed by collision separation).
+    const backwardTolerance = peon.visionRange || 90;
 
     if (peon.side === 'left') {
       return enemyPeon.x >= peon.x - backwardTolerance;
@@ -1095,8 +1131,11 @@ function createSimulation(options = {}) {
     const targetDistance = peon.distanceTo(currentTarget);
 
     if (isPeonEntity(currentTarget)) {
+      // Keep target if within attack range OR within vision range.
+      // isEnemyAheadOrNearby check removed — peons should keep targeting
+      // enemies that are slightly behind them (e.g. after collision separation).
       return targetDistance <= peon.attackRange
-        || (targetDistance <= peon.visionRange && isEnemyAheadOrNearby(peon, currentTarget));
+        || targetDistance <= peon.visionRange;
     }
 
     // Structures are only kept while no enemy peon is visible.
@@ -1153,8 +1192,8 @@ function createSimulation(options = {}) {
 
   function findDesiredTargetForPeon(peon, enemyPeons) {
     const crossedMidline = hasCrossedMidline(peon);
-    const forwardEnemyPeons = enemyPeons.filter(enemyPeon => isEnemyAheadOrNearby(peon, enemyPeon));
-    const visibleEnemyTarget = findNearestEnemyPeon(peon, forwardEnemyPeons);
+    // Don't filter by isEnemyAheadOrNearby() — peons should see ALL enemies in vision range.
+    const visibleEnemyTarget = findNearestEnemyPeon(peon, enemyPeons);
     const structureTarget = findStructureTargetForPeon(peon, crossedMidline);
 
     return {
@@ -1532,10 +1571,28 @@ function createSimulation(options = {}) {
       }
     }
 
+    // ── Collision resolution + steering forces ──────────────────────────────
+    // Run after the main movement loop so attacking peons have already moved
+    // toward their targets. Collision then pushes overlaps apart and steering
+    // squeezes free-movers into open lanes.
+    if (_collisionSteering) {
+      const dt = 1 / constants.TICK_RATE;
+      const structuresBySide = {
+        left:  [state.leftBase,  state.leftTower ].filter(s => !s.isDestroyed()),
+        right: [state.rightBase, state.rightTower].filter(s => !s.isDestroyed()),
+      };
+      _collisionSteering.tick(
+        state.peons.filter(p => p.isAlive() && !p.isOffLane()),
+        _lanePath,
+        dt,
+        structuresBySide
+      );
+    }
+
     tickBaseIncome();
     tickShrineIncome(state.peons.filter(peon => peon.isAlive() && !peon.isOffLane()));
 
-      pushDecisionLog({
+    pushDecisionLog({
         event: 'tick-summary',
         leftPeons: state.peons.filter(peon => peon.side === 'left' && peon.isAlive() && !peon.isOffLane()).length,
         rightPeons: state.peons.filter(peon => peon.side === 'right' && peon.isAlive() && !peon.isOffLane()).length,
