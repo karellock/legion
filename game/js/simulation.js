@@ -1,3 +1,15 @@
+// Collision/steering and lane-path are optional deps loaded when available
+// (browser via script tag, Node.js via require in tests).
+const _LanePath = (typeof LegionLanePath !== 'undefined')
+  ? LegionLanePath
+  : (() => { try { return require('./lane-path.js'); } catch { return null; } })();
+const _SpatialGrid = (typeof LegionSpatialGrid !== 'undefined')
+  ? LegionSpatialGrid
+  : (() => { try { return require('./spatial-hash-grid.js'); } catch { return null; } })();
+const _CollisionSteering = (typeof LegionCollisionSteering !== 'undefined')
+  ? LegionCollisionSteering
+  : (() => { try { return require('./collision-steering.js'); } catch { return null; } })();
+
 function createSimulation(options = {}) {
   const width = options.width ?? 800;
   const height = options.height ?? 600;
@@ -398,6 +410,15 @@ function createSimulation(options = {}) {
 
   const spawnSlots = [];
 
+  // ── Collision / steering singletons ──────────────────────────────────────
+  // Created once per simulation instance. The lane path is a straight line
+  // for Phase 1; swap waypoints here when S-curve maps arrive.
+  const _collisionGrid = _SpatialGrid ? _SpatialGrid.createSpatialHashGrid({ cellSize: 32 }) : null;
+  let   _lanePath      = null; // built in initEntities once we know base positions
+  const _collisionSteering = (_CollisionSteering && _collisionGrid)
+    ? _CollisionSteering.createCollisionSteering(_collisionGrid)
+    : null;
+
   function rebuildSpawnSlots() {
     const nextSlots = createSpawnSlots();
     spawnSlots.splice(0, spawnSlots.length, ...nextSlots);
@@ -769,6 +790,15 @@ function createSimulation(options = {}) {
     state.decisionLog = [];
     rebuildSpawnSlots();
     updateStructureDamageByTime();
+
+    // Build lane path once entity positions are known.
+    if (_LanePath) {
+      _lanePath = _LanePath.createStraightLanePath(
+        constants.LANE_LEFT,
+        constants.LANE_RIGHT,
+        height / 2
+      );
+    }
   }
 
   function getUpgradesForSide(side) {
@@ -1532,10 +1562,28 @@ function createSimulation(options = {}) {
       }
     }
 
+    // ── Collision resolution + steering forces ──────────────────────────────
+    // Run after the main movement loop so attacking peons have already moved
+    // toward their targets. Collision then pushes overlaps apart and steering
+    // squeezes free-movers into open lanes.
+    if (_collisionSteering) {
+      const dt = 1 / constants.TICK_RATE;
+      const structuresBySide = {
+        left:  [state.leftBase,  state.leftTower ].filter(s => !s.isDestroyed()),
+        right: [state.rightBase, state.rightTower].filter(s => !s.isDestroyed()),
+      };
+      _collisionSteering.tick(
+        state.peons.filter(p => p.isAlive() && !p.isOffLane()),
+        _lanePath,
+        dt,
+        structuresBySide
+      );
+    }
+
     tickBaseIncome();
     tickShrineIncome(state.peons.filter(peon => peon.isAlive() && !peon.isOffLane()));
 
-      pushDecisionLog({
+    pushDecisionLog({
         event: 'tick-summary',
         leftPeons: state.peons.filter(peon => peon.side === 'left' && peon.isAlive() && !peon.isOffLane()).length,
         rightPeons: state.peons.filter(peon => peon.side === 'right' && peon.isAlive() && !peon.isOffLane()).length,
